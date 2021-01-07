@@ -350,7 +350,7 @@ impl Hud {
                 // `Font` is a handle to a loaded TTF, stored inside the `Context`.
                 // `Font::default()` always exists and maps to DejaVuSerif.
                 font: Some(graphics::Font::default()),
-                scale: Some(graphics::Scale::uniform(30.0)),
+                //scale: Some(graphics::Scale::uniform(30.0)),
                 // This doesn't do anything at this point; can be used to omit fields in declarations.
                 ..Default::default()
             });
@@ -474,7 +474,7 @@ impl event::EventHandler for GameState {
 
 fn main() -> GameResult {
     // Here we use a ContextBuilder to setup metadata about our game. First the title and author
-    let (ctx, events_loop) = &mut ggez::ContextBuilder::new("player", "Gray Olson")
+    let (ctx, events_loop) = ggez::ContextBuilder::new("player", "Gray Olson")
         // Next we set up the window. This title will be displayed in the title bar of the window.
         .window_setup(ggez::conf::WindowSetup::default().title("Player!"))
         // Now we get to set the size of the window, which we use our SCREEN_SIZE constant from earlier to help with
@@ -484,7 +484,7 @@ fn main() -> GameResult {
         .build()?;
 
     // Next we create a new instance of our GameState struct, which implements EventHandler
-    let state = &mut GameState::new();
+    let state = GameState::new();
     // And finally we actually run our game, passing in our context and state.
     event::run(ctx, events_loop, state)
 }
