@@ -312,12 +312,19 @@ impl Player {
 }
 
 struct Hud {
+    player_name: String,
+    player_hp: String,
+    player_mp: String,
 }
 
 impl Hud {
 
     fn new() -> Hud {
-        Hud {}
+        Hud {
+            player_name: "".to_string(),
+            player_hp: "".to_string(),
+            player_mp: "".to_string(),
+        }
     }
 
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
@@ -340,18 +347,13 @@ impl Hud {
         let bottom_rectangle =
             graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), bottom_back, color)?;
         graphics::draw(ctx, &bottom_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
-        //let text = graphics::Text::new("Player: Unknown"); 
         let mut text = graphics::Text::new(graphics::TextFragment {
-                // `TextFragment` stores a string, and optional parameters which will override those
-                // of `Text` itself. This allows inlining differently formatted lines, words,
-                // or even individual letters, into the same block of text.
-                text: "Player: UNKNOWN".to_string(),
+                text: format!("Player: {}", self.player_name),
                 color: Some(graphics::Color::new(1.0, 1.0, 1.0, 1.0)),
                 // `Font` is a handle to a loaded TTF, stored inside the `Context`.
                 // `Font::default()` always exists and maps to DejaVuSerif.
                 font: Some(graphics::Font::default()),
-                //scale: Some(graphics::Scale::uniform(30.0)),
-                // This doesn't do anything at this point; can be used to omit fields in declarations.
+                scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
                 ..Default::default()
             });
         graphics::queue_text(ctx, &text, ggez::mint::Point2 { x: 0.0, y: 0.0 }, None);
@@ -392,9 +394,10 @@ impl GameState {
         // Then we choose a random place to put our piece of food using the helper we made
         // earlier.
         let food_pos = GridPosition::random(GRID_SIZE.0, GRID_SIZE.1);
+        let player = Player::new(player_pos);
 
         GameState {
-            player: Player::new(player_pos),
+            player: player,
             food: Food::new(food_pos),
             hud: Hud::new(),
             gameover: false,
