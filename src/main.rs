@@ -33,6 +33,7 @@ const GRID_CELL_SIZE: (f32) = (32.0);
 const PLAYER_MAX_HP: (i64) = 100;
 const PLAYER_MAX_MP: (i64)= 30;
 const PLAYER_MAX_STR: (i64) = 10;
+const PLAYER_MOVE_SPEED: (f32) = 10.0;
 
 // Here we're defining how many quickly we want our game to update. This will be
 // important later so that we don't have our player fly across the screen because
@@ -49,7 +50,7 @@ struct Position {
 
 impl From<Position> for Rect {
     fn from(pos: Position) -> Self {
-        Rect { x: pos.x, y: pos.y, w: pos.x + GRID_CELL_SIZE, h: pos.y + GRID_CELL_SIZE }
+        Rect { x: pos.x, y: pos.y, w: GRID_CELL_SIZE, h: GRID_CELL_SIZE }
     }
 }
 
@@ -196,10 +197,13 @@ impl Player {
     /// we want to update the game state.
     fn update(&mut self, food: &Food) {
         if self.moving {
-            // First we get a new body position by using our `new_from_move` helper
-            // function from earlier. We move our body in the direction we are currently
-            // heading.
-            self.body.x += 1.0;
+            match self.dir {
+                Direction::Up => self.body.y -= PLAYER_MOVE_SPEED,
+                Direction::Down => self.body.y += PLAYER_MOVE_SPEED,
+                Direction::Left => self.body.x -= PLAYER_MOVE_SPEED,
+                Direction::Right => self.body.x += PLAYER_MOVE_SPEED,
+                _ => (),
+            };
             //if let Some(new_body_pos) = GridPosition::new_from_move(self.body.pos, self.dir) {
             //    let new_body = Segment::new(new_body_pos);
             //    self.body = new_body;
