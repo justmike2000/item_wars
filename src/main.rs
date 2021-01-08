@@ -16,6 +16,7 @@
 // to need frequently.
 use ggez::event::{KeyCode, KeyMods};
 use ggez::{event, graphics, Context, GameResult};
+use graphics::Rect;
 
 // We'll bring in some things from `std` to help us in the future.
 use std::time::{Duration, Instant};
@@ -26,18 +27,8 @@ use rand::Rng;
 
 // The first thing we want to do is set up some constants that will help us out later.
 
-// Here we define the size of our game board in terms of how many grid
-// cells it will take up. We choose to make a 30 x 20 game board.
-const GRID_SIZE: (i16, i16) = (30, 20);
-// Now we define the pixel size of each tile, which we make 32x32 pixels.
-const GRID_CELL_SIZE: (i16, i16) = (32, 32);
-
-// Next we define how large we want our actual window to be by multiplying
-// the components of our grid size by its corresponding pixel size.
-const SCREEN_SIZE: (f32, f32) = (
-    GRID_SIZE.0 as f32 * GRID_CELL_SIZE.0 as f32,
-    GRID_SIZE.1 as f32 * GRID_CELL_SIZE.1 as f32,
-);
+const SCREEN_SIZE: (f32, f32) = (640.0, 480.0);
+const GRID_CELL_SIZE: (f32) = (32.0);
 
 const PLAYER_MAX_HP: (i64) = 100;
 const PLAYER_MAX_MP: (i64)= 30;
@@ -50,14 +41,16 @@ const UPDATES_PER_SECOND: f32 = 30.0;
 // And we get the milliseconds of delay that this update rate corresponds to.
 const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 
-/// Now we define a struct that will hold an entity's position on our game board
-/// or grid which we defined above. We'll use signed integers because we only want
-/// to store whole numbers, and we need them to be signed so that they work properly
-/// with our modulus arithmetic later.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-struct GridPosition {
-    x: i16,
-    y: i16,
+#[derive(PartialEq, PartialOrd, Clone, Copy)]
+struct Position {
+    x: f32,
+    y: f32,
+}
+
+impl From<Position> for Rect {
+    fn from(pos: Position) -> Self {
+        Rect { x: pos.x, y: pos.y, w: pos.x + GRID_CELL_SIZE, h: pos.y + GRID_CELL_SIZE }
+    }
 }
 
 /// This is a trait that provides a modulus function that works for negative values
@@ -80,60 +73,6 @@ where
     fn modulo(&self, n: T) -> T {
         // Because of our trait bounds, we can now apply these operators.
         (self.clone() % n.clone() + n.clone()) % n.clone()
-    }
-}
-
-impl GridPosition {
-    /// We make a standard helper function so that we can create a new `GridPosition`
-    /// more easily.
-    pub fn new(x: i16, y: i16) -> Self {
-        GridPosition { x, y }
-    }
-
-    /// As well as a helper function that will give us a random `GridPosition` from
-    /// `(0, 0)` to `(max_x, max_y)`
-    pub fn random(max_x: i16, max_y: i16) -> Self {
-        let mut rng = rand::thread_rng();
-        // We can use `.into()` to convert from `(i16, i16)` to a `GridPosition` since
-        // we implement `From<(i16, i16)>` for `GridPosition` below.
-        (
-            rng.gen_range::<i16, i16, i16>(0, max_x),
-            rng.gen_range::<i16, i16, i16>(0, max_y),
-        )
-            .into()
-    }
-
-    pub fn new_from_move(pos: GridPosition, dir: Direction) -> Self {
-        GridPosition::new(0, 0)
-        //match dir {
-        //    Direction::Up => GridPosition::new(pos.x, (pos.y - 1).modulo(GRID_SIZE.1)),
-        //    Direction::Down => GridPosition::new(pos.x, (pos.y + 1).modulo(GRID_SIZE.1)),
-        //    Direction::Left => GridPosition::new((pos.x - 1).modulo(GRID_SIZE.0), pos.y),
-        //    Direction::Right => GridPosition::new((pos.x + 1).modulo(GRID_SIZE.0), pos.y),
-        //}
-    }
-}
-
-/// We implement the `From` trait, which in this case allows us to convert easily between
-/// a GridPosition and a ggez `graphics::Rect` which fills that grid cell.
-/// Now we can just call `.into()` on a `GridPosition` where we want a
-/// `Rect` that represents that grid cell.
-impl From<GridPosition> for graphics::Rect {
-    fn from(pos: GridPosition) -> Self {
-        graphics::Rect::new_i32(
-            pos.x as i32 * GRID_CELL_SIZE.0 as i32,
-            pos.y as i32 * GRID_CELL_SIZE.1 as i32,
-            GRID_CELL_SIZE.0 as i32,
-            GRID_CELL_SIZE.1 as i32,
-        )
-    }
-}
-
-/// And here we implement `From` again to allow us to easily convert between
-/// `(i16, i16)` and a `GridPosition`.
-impl From<(i16, i16)> for GridPosition {
-    fn from(pos: (i16, i16)) -> Self {
-        GridPosition { x: pos.0, y: pos.1 }
     }
 }
 
@@ -164,28 +103,14 @@ impl Direction {
     }
 }
 
-/// This is mostly just a semantic abstraction over a `GridPosition` to represent
-/// a segment of the player. It could be useful to, say, have each segment contain its
-/// own color or something similar. This is an exercise left up to the reader ;)
-#[derive(Clone, Copy, Debug)]
-struct Segment {
-    pos: GridPosition,
-}
-
-impl Segment {
-    pub fn new(pos: GridPosition) -> Self {
-        Segment { pos }
-    }
-}
-
 /// This is again an abstraction over a `GridPosition` that represents
 /// a piece of food the player can eat. It can draw itself.
 struct Food {
-    pos: GridPosition,
+    pos: Position,
 }
 
 impl Food {
-    pub fn new(pos: GridPosition) -> Self {
+    pub fn new(pos: Position) -> Self {
         Food { pos }
     }
 
@@ -222,7 +147,7 @@ enum Ate {
 /// state of the Player itself.
 struct Player {
     /// First we have the body of the player, which is a single `Segment`.
-    body: Segment,
+    body: Position,
     /// Then we have the current direction the player is moving. This is
     /// the direction it will move when `update` is called on it.
     dir: Direction,
@@ -241,11 +166,11 @@ struct Player {
 }
 
 impl Player {
-    pub fn new(pos: GridPosition) -> Self {
+    pub fn new(pos: Position) -> Self {
         // Our player will initially have a body and one body segment,
         // and will be moving to the right.
         Player {
-            body: Segment::new(pos),
+            body: Position { x: 100.0, y: 100.0 },
             dir: Direction::Right,
             ate: None,
             next_dir: None,
@@ -260,7 +185,7 @@ impl Player {
     /// the player eats a given piece of Food based
     /// on its current position
     fn eats(&self, food: &Food) -> bool {
-        if self.body.pos == food.pos {
+        if self.body == food.pos {
             true
         } else {
             false
@@ -274,13 +199,11 @@ impl Player {
             // First we get a new body position by using our `new_from_move` helper
             // function from earlier. We move our body in the direction we are currently
             // heading.
-            let new_body_pos = GridPosition::new_from_move(self.body.pos, self.dir);
-            // Next we create a new segment will be our new body segment using the
-            // new position we just made.
-            let new_body = Segment::new(new_body_pos);
-            // And finally make our actual head the new Segment we created. This has
-            // effectively moved the player in the current direction.
-            self.body = new_body;
+            self.body.x += 1.0;
+            //if let Some(new_body_pos) = GridPosition::new_from_move(self.body.pos, self.dir) {
+            //    let new_body = Segment::new(new_body_pos);
+            //    self.body = new_body;
+            //}
             // Next we check whether the player eats itself or some food, and if so,
             // we set our `ate` member to reflect that state.
             if self.eats(food) {
@@ -303,7 +226,7 @@ impl Player {
         let rectangle = graphics::Mesh::new_rectangle(
             ctx,
             graphics::DrawMode::fill(),
-            self.body.pos.into(),
+            self.body.into(),
             [1.0, 0.5, 0.0, 1.0].into(),
         )?;
         graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
@@ -333,13 +256,13 @@ impl Hud {
                 x: 0.0,
                 y: 0.0,
                 w: 1000.0,
-                h: GRID_CELL_SIZE.0 as f32,
+                h: GRID_CELL_SIZE,
         };
         let bottom_back = graphics::Rect {
                 x: 0.0,
                 y: 608.0,
                 w: 1000.0,
-                h: GRID_CELL_SIZE.0 as f32,
+                h: GRID_CELL_SIZE,
         };
         let top_rectangle =
             graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), top_back, color)?;
@@ -388,12 +311,10 @@ struct GameState {
 impl GameState {
     /// Our new function will set up the initial state of our game.
     pub fn new() -> Self {
-        // First we put our player a quarter of the way across our grid in the x axis
-        // and half way down the y axis. This works well since we start out moving to the right.
-        let player_pos = (GRID_SIZE.0 / 4, GRID_SIZE.1 / 2).into();
-        // Then we choose a random place to put our piece of food using the helper we made
-        // earlier.
-        let food_pos = GridPosition::random(GRID_SIZE.0, GRID_SIZE.1);
+        let mut rng = rand::thread_rng();
+        let player_pos = Position { x: 0.0, y: 0.0 };
+        let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
+                                          y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
         let player = Player::new(player_pos);
 
         GameState {
@@ -427,8 +348,9 @@ impl event::EventHandler for GameState {
                         // If it ate a piece of food, we randomly select a new position for our piece of food
                         // and move it to this new position.
                         Ate::Food => {
-                            let new_food_pos = GridPosition::random(GRID_SIZE.0, GRID_SIZE.1);
-                            self.food.pos = new_food_pos;
+                            let mut rng = rand::thread_rng();
+                            self.food.pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
+                                                       y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 }
                         }
                     }
                 }
