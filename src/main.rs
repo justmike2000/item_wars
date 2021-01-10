@@ -14,7 +14,7 @@
 
 // First we need to actually `use` the pieces of ggez that we are going
 // to need frequently.
-use ggez::event::{KeyCode, KeyMods};
+use ggez::{conf::FullscreenType, event::{KeyCode, KeyMods}};
 use ggez::{event, graphics, Context, GameResult};
 use graphics::Rect;
 
@@ -405,15 +405,17 @@ impl event::EventHandler for GameState {
 
 fn main() -> GameResult {
     // Here we use a ContextBuilder to setup metadata about our game. First the title and author
-    let (ctx, events_loop) = ggez::ContextBuilder::new("player", "Gray Olson")
+    let (mut ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
         // Next we set up the window. This title will be displayed in the title bar of the window.
-        .window_setup(ggez::conf::WindowSetup::default().title("Player!"))
+        .window_setup(ggez::conf::WindowSetup::default().title("Item Wars!"))
         // Now we get to set the size of the window, which we use our SCREEN_SIZE constant from earlier to help with
         .window_mode(ggez::conf::WindowMode::default().dimensions(SCREEN_SIZE.0, SCREEN_SIZE.1))
         // And finally we attempt to build the context and create the window. If it fails, we panic with the message
         // "Failed to build ggez context"
         .build()?;
 
+    // To enable fullscreen
+    //graphics::set_fullscreen(&mut ctx, FullscreenType::True);
     // Next we create a new instance of our GameState struct, which implements EventHandler
     let state = GameState::new();
     // And finally we actually run our game, passing in our context and state.
