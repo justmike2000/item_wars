@@ -1,28 +1,12 @@
-//! A small player game done after watching
-//! <https://www.youtube.com/watch?v=HCwMb0KslX8>
-//! to showcase ggez and how it relates/differs from piston.
-//!
-//! Note that this example is meant to highlight the general
-//! structure of a ggez game. Some of the details may need to
-//! be changed to scale the game. For example, if we needed to
-//! draw hundreds or thousands of shapes, a SpriteBatch is going
-//! to offer far better performance than the direct draw calls
-//! that this example uses.
-//!
-//! Author: @termhn
-//! Original repo: https://github.com/termhn/ggez_player
+//! Author: @justmike2000
+//! Repo: https://github.com/justmike2000/item_wars/
 
-// First we need to actually `use` the pieces of ggez that we are going
-// to need frequently.
 use ggez::event::{KeyCode, KeyMods};
 use ggez::{event, graphics, Context, GameResult};
 use graphics::Rect;
 
-// We'll bring in some things from `std` to help us in the future.
 use std::time::{Duration, Instant};
 
-// And finally bring the `Rng` trait into scope so that we can generate
-// some random numbers later.
 use rand::Rng;
 
 // The first thing we want to do is set up some constants that will help us out later.
@@ -35,11 +19,7 @@ const PLAYER_MAX_MP: i64 = 30;
 const PLAYER_MAX_STR: i64 = 10;
 const PLAYER_MOVE_SPEED: f32 = 10.0;
 
-// Here we're defining how many quickly we want our game to update. This will be
-// important later so that we don't have our player fly across the screen because
-// it's moving a full tile every frame.
 const UPDATES_PER_SECOND: f32 = 30.0;
-// And we get the milliseconds of delay that this update rate corresponds to.
 const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 
 #[derive(PartialEq, PartialOrd, Clone, Copy)]
