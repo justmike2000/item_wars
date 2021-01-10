@@ -174,10 +174,7 @@ impl Player {
         }
     }
 
-    /// The main update function for our player which gets called every time
-    /// we want to update the game state.
-    fn update(&mut self, food: &Food) {
-        if self.moving {
+    fn move_direction(&mut self) {
             if self.dir.up {
                 self.body.y -= PLAYER_MOVE_SPEED;
             }
@@ -190,12 +187,18 @@ impl Player {
             if self.dir.right {
                 self.body.x += PLAYER_MOVE_SPEED;
             }
-            if self.eats(food) {
-                self.ate = Some(Ate::Food);
-            } else {
-                self.ate = None
-            }
-            self.moving = false;
+    }
+
+    /// The main update function for our player which gets called every time
+    /// we want to update the game state.
+    fn update(&mut self, food: &Food) {
+        if self.moving {
+            self.move_direction()
+        }
+        if self.eats(food) {
+            self.ate = Some(Ate::Food);
+        } else {
+            self.ate = None
         }
     }
 
