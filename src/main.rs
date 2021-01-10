@@ -14,7 +14,7 @@
 
 // First we need to actually `use` the pieces of ggez that we are going
 // to need frequently.
-use ggez::{conf::FullscreenType, event::{KeyCode, KeyMods}};
+use ggez::event::{KeyCode, KeyMods};
 use ggez::{event, graphics, Context, GameResult};
 use graphics::Rect;
 
@@ -28,12 +28,12 @@ use rand::Rng;
 // The first thing we want to do is set up some constants that will help us out later.
 
 const SCREEN_SIZE: (f32, f32) = (640.0, 480.0);
-const GRID_CELL_SIZE: (f32) = (32.0);
+const GRID_CELL_SIZE: f32 = 32.0;
 
-const PLAYER_MAX_HP: (i64) = 100;
-const PLAYER_MAX_MP: (i64)= 30;
-const PLAYER_MAX_STR: (i64) = 10;
-const PLAYER_MOVE_SPEED: (f32) = 10.0;
+const PLAYER_MAX_HP: i64 = 100;
+const PLAYER_MAX_MP: i64 = 30;
+const PLAYER_MAX_STR: i64 = 10;
+const PLAYER_MOVE_SPEED: f32 = 10.0;
 
 // Here we're defining how many quickly we want our game to update. This will be
 // important later so that we don't have our player fly across the screen because
@@ -140,7 +140,6 @@ struct Player {
     /// Store the direction that will be used in the `update` after the next `update`
     /// This is needed so a user can press two directions (eg. left then up)
     /// before one `update` has happened. It sort of queues up key press input
-    next_dir: Option<Direction>,
     hp: i64,
     mp: i64,
     str: i64,
@@ -152,10 +151,9 @@ impl Player {
         // Our player will initially have a body and one body segment,
         // and will be moving to the right.
         Player {
-            body: Position { x: 100.0, y: 100.0 },
+            body: pos,
             dir: Direction::default(),
             ate: None,
-            next_dir: None,
             moving: false,
             hp: PLAYER_MAX_HP,
             mp: PLAYER_MAX_MP,
@@ -257,7 +255,7 @@ impl Hud {
         let bottom_rectangle =
             graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), bottom_back, color)?;
         graphics::draw(ctx, &bottom_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
-        let mut text = graphics::Text::new(graphics::TextFragment {
+        let text = graphics::Text::new(graphics::TextFragment {
                 text: format!("Player: {}", self.player_name),
                 color: Some(graphics::Color::new(1.0, 1.0, 1.0, 1.0)),
                 // `Font` is a handle to a loaded TTF, stored inside the `Context`.
@@ -293,14 +291,12 @@ struct GameState {
     /// our update rate.
     last_update: Instant,
     hud: Hud,
-    pressed_keys: Vec<KeyCode>
 }
 
 impl GameState {
-    /// Our new function will set up the initial state of our game.
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
-        let player_pos = Position { x: 0.0, y: 0.0 };
+        let player_pos = Position { x: 100.0, y: 100.0 };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
                                           y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
         let player = Player::new(player_pos);
@@ -311,7 +307,6 @@ impl GameState {
             hud: Hud::new(),
             gameover: false,
             last_update: Instant::now(),
-            pressed_keys: vec![],
         }
     }
 }
@@ -405,7 +400,7 @@ impl event::EventHandler for GameState {
 
 fn main() -> GameResult {
     // Here we use a ContextBuilder to setup metadata about our game. First the title and author
-    let (mut ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
+    let (ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
         // Next we set up the window. This title will be displayed in the title bar of the window.
         .window_setup(ggez::conf::WindowSetup::default().title("Item Wars!"))
         // Now we get to set the size of the window, which we use our SCREEN_SIZE constant from earlier to help with
