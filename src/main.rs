@@ -77,31 +77,12 @@ where
     }
 }
 
-/// Next we create an enum that will represent all the possible
-/// directions that our player could move.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-    None,
-}
-
-impl Direction {
-    /// We also create a helper function that will let us convert between a
-    /// `ggez` `Keycode` and the `Direction` that it represents. Of course,
-    /// not every keycode represents a direction, so we return `None` if this
-    /// is the case.
-    pub fn from_keycode(key: KeyCode) -> Option<Direction> {
-        match key {
-            KeyCode::Up => Some(Direction::Up),
-            KeyCode::Down => Some(Direction::Down),
-            KeyCode::Left => Some(Direction::Left),
-            KeyCode::Right => Some(Direction::Right),
-            _ => None,
-        }
-    }
+#[derive(Default)]
+struct Direction {
+    up: bool,
+    down: bool,
+    left: bool,
+    right: bool,
 }
 
 /// This is again an abstraction over a `GridPosition` that represents
@@ -172,7 +153,7 @@ impl Player {
         // and will be moving to the right.
         Player {
             body: Position { x: 100.0, y: 100.0 },
-            dir: Direction::Right,
+            dir: Direction::default(),
             ate: None,
             next_dir: None,
             moving: false,
@@ -197,19 +178,18 @@ impl Player {
     /// we want to update the game state.
     fn update(&mut self, food: &Food) {
         if self.moving {
-            match self.dir {
-                Direction::Up => self.body.y -= PLAYER_MOVE_SPEED,
-                Direction::Down => self.body.y += PLAYER_MOVE_SPEED,
-                Direction::Left => self.body.x -= PLAYER_MOVE_SPEED,
-                Direction::Right => self.body.x += PLAYER_MOVE_SPEED,
-                _ => (),
-            };
-            //if let Some(new_body_pos) = GridPosition::new_from_move(self.body.pos, self.dir) {
-            //    let new_body = Segment::new(new_body_pos);
-            //    self.body = new_body;
-            //}
-            // Next we check whether the player eats itself or some food, and if so,
-            // we set our `ate` member to reflect that state.
+            if self.dir.up {
+                self.body.y -= PLAYER_MOVE_SPEED;
+            }
+            if self.dir.down {
+                self.body.y += PLAYER_MOVE_SPEED;
+            }
+            if self.dir.left {
+                self.body.x -= PLAYER_MOVE_SPEED;
+            }
+            if self.dir.right {
+                self.body.x += PLAYER_MOVE_SPEED;
+            }
             if self.eats(food) {
                 self.ate = Some(Ate::Food);
             } else {
@@ -310,6 +290,7 @@ struct GameState {
     /// our update rate.
     last_update: Instant,
     hud: Hud,
+    pressed_keys: Vec<KeyCode>
 }
 
 impl GameState {
@@ -327,6 +308,7 @@ impl GameState {
             hud: Hud::new(),
             gameover: false,
             last_update: Instant::now(),
+            pressed_keys: vec![],
         }
     }
 }
@@ -383,6 +365,22 @@ impl event::EventHandler for GameState {
         Ok(())
     }
 
+    fn key_up_event(
+        &mut self,
+        _ctx: &mut Context,
+        keycode: KeyCode,
+        _keymod: KeyMods,
+    ) {
+        match keycode {
+            KeyCode::Left => self.player.dir.left = false,
+            KeyCode::Right => self.player.dir.right = false,
+            KeyCode::Up => self.player.dir.up = false,
+            KeyCode::Down => self.player.dir.down = false,
+            _ => ()
+        };
+        self.player.moving = false;
+    }
+
     /// key_down_event gets fired when a key gets pressed.
     fn key_down_event(
         &mut self,
@@ -391,13 +389,14 @@ impl event::EventHandler for GameState {
         _keymod: KeyMods,
         _repeat: bool,
     ) {
-        // Here we attempt to convert the Keycode into a Direction using the helper
-        // we defined earlier.
-        if let Some(dir) = Direction::from_keycode(keycode) {
-                self.player.moving = true;
-                self.player.next_dir = Some(dir);
-                self.player.dir = dir;
-        }
+        match keycode {
+            KeyCode::Left => self.player.dir.left = true,
+            KeyCode::Right => self.player.dir.right = true,
+            KeyCode::Up => self.player.dir.up = true,
+            KeyCode::Down => self.player.dir.down = true,
+            _ => ()
+        };
+        self.player.moving = true;
     }
 }
 
