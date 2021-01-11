@@ -156,16 +156,16 @@ impl Player {
     }
 
     fn move_direction(&mut self) {
-            if self.dir.up {
+            if self.dir.up && self.body.y > GRID_CELL_SIZE {
                 self.body.y -= PLAYER_MOVE_SPEED;
             }
-            if self.dir.down {
+            if self.dir.down && self.body.y < SCREEN_SIZE.1 - GRID_CELL_SIZE {
                 self.body.y += PLAYER_MOVE_SPEED;
             }
-            if self.dir.left {
+            if self.dir.left && self.body.x > 0.0 {
                 self.body.x -= PLAYER_MOVE_SPEED;
             }
-            if self.dir.right {
+            if self.dir.right && self.body.x < SCREEN_SIZE.0 - GRID_CELL_SIZE {
                 self.body.x += PLAYER_MOVE_SPEED;
             }
     }
