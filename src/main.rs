@@ -18,6 +18,7 @@ const PLAYER_MAX_HP: i64 = 100;
 const PLAYER_MAX_MP: i64 = 30;
 const PLAYER_MAX_STR: i64 = 10;
 const PLAYER_MOVE_SPEED: f32 = 10.0;
+const PLAYER_TOP_ACCEL_SPEED: i32 = 5;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
@@ -120,6 +121,7 @@ struct Player {
     /// Store the direction that will be used in the `update` after the next `update`
     /// This is needed so a user can press two directions (eg. left then up)
     /// before one `update` has happened. It sort of queues up key press input
+    name: String,
     hp: i64,
     mp: i64,
     str: i64,
@@ -127,10 +129,11 @@ struct Player {
 }
 
 impl Player {
-    pub fn new(pos: Position) -> Self {
+    pub fn new(name: String, pos: Position) -> Self {
         // Our player will initially have a body and one body segment,
         // and will be moving to the right.
         Player {
+            name,
             body: pos,
             dir: Direction::default(),
             ate: None,
@@ -200,22 +203,15 @@ impl Player {
 }
 
 struct Hud {
-    player_name: String,
-    player_hp: String,
-    player_mp: String,
 }
 
 impl Hud {
 
     fn new() -> Hud {
-        Hud {
-            player_name: "".to_string(),
-            player_hp: "".to_string(),
-            player_mp: "".to_string(),
-        }
+        Hud {}
     }
 
-    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+    fn draw(&self, ctx: &mut Context, player: &Player) -> GameResult<()> {
         let color = [0.0, 0.0, 0.0, 1.0].into();
         let top_back = graphics::Rect {
                 x: 0.0,
@@ -236,7 +232,7 @@ impl Hud {
             graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), bottom_back, color)?;
         graphics::draw(ctx, &bottom_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
         let text = graphics::Text::new(graphics::TextFragment {
-                text: format!("Player: {}", self.player_name),
+                text: format!("Player: {}", player.name),
                 color: Some(graphics::Color::new(1.0, 1.0, 1.0, 1.0)),
                 // `Font` is a handle to a loaded TTF, stored inside the `Context`.
                 // `Font::default()` always exists and maps to DejaVuSerif.
@@ -279,7 +275,7 @@ impl GameState {
         let player_pos = Position { x: 100.0, y: 100.0 };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
                                           y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
-        let player = Player::new(player_pos);
+        let player = Player::new("Player 1".to_string(), player_pos);
 
         GameState {
             player: player,
@@ -333,7 +329,7 @@ impl event::EventHandler for GameState {
         // Then we tell the player and the food to draw themselves
         self.player.draw(ctx)?;
         self.food.draw(ctx)?;
-        self.hud.draw(ctx)?;
+        self.hud.draw(ctx, &self.player)?;
         // Finally we call graphics::present to cycle the gpu's framebuffer and display
         // the new frame we just drew.
         graphics::present(ctx)?;
