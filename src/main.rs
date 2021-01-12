@@ -6,7 +6,7 @@ use ggez::{event, graphics, Context, GameResult};
 use graphics::Rect;
 
 use std::time::{Duration, Instant};
-use std::io::{self, Read};
+use std::io;
 
 use rand::Rng;
 
@@ -444,7 +444,7 @@ impl event::EventHandler for GameState {
 
 fn main() -> GameResult {
     // Here we use a ContextBuilder to setup metadata about our game. First the title and author
-    let (ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
+    let (mut ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
         // Next we set up the window. This title will be displayed in the title bar of the window.
         .window_setup(ggez::conf::WindowSetup::default().title("Item Wars!"))
         // Now we get to set the size of the window, which we use our SCREEN_SIZE constant from earlier to help with
@@ -454,7 +454,7 @@ fn main() -> GameResult {
         .build()?;
 
     // To enable fullscreen
-    //graphics::set_fullscreen(&mut ctx, FullscreenType::True);
+    graphics::set_fullscreen(&mut ctx, ggez::conf::FullscreenType::True).unwrap();
 
     let mut input = String::new();
     let mut size = 0;
