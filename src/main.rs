@@ -6,6 +6,7 @@ use ggez::{event, graphics, Context, GameResult};
 use graphics::Rect;
 
 use std::time::{Duration, Instant};
+use std::io::{self, Read};
 
 use rand::Rng;
 
@@ -337,12 +338,12 @@ struct GameState {
 }
 
 impl GameState {
-    pub fn new() -> Self {
+    pub fn new(player_name: String) -> Self {
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
                                           y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
-        let player = Player::new("Player 1".to_string(), player_pos);
+        let player = Player::new(player_name, player_pos);
 
         GameState {
             player: player,
@@ -454,8 +455,19 @@ fn main() -> GameResult {
 
     // To enable fullscreen
     //graphics::set_fullscreen(&mut ctx, FullscreenType::True);
+
+    let mut input = String::new();
+    let mut size = 0;
+    while size <= 0 || size > 8 {
+        input = "".to_string();
+        println!("Enter Player Name (Limit 8 chars): ");
+        size = match io::stdin().read_line(&mut input) {
+            Ok(n) => n,
+            Err(error) => panic!("error: {}", error),
+        };
+    }
     // Next we create a new instance of our GameState struct, which implements EventHandler
-    let state = GameState::new();
+    let state = GameState::new(input);
     // And finally we actually run our game, passing in our context and state.
     event::run(ctx, events_loop, state)
 }
