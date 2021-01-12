@@ -144,9 +144,6 @@ impl Player {
         }
     }
 
-    /// A helper function that determines whether
-    /// the player eats a given piece of Food based
-    /// on its current position
     fn eats(&self, food: &Food) -> bool {
         if self.body == food.pos {
             true
@@ -159,7 +156,7 @@ impl Player {
             if self.dir.up && self.body.y > GRID_CELL_SIZE {
                 self.body.y -= PLAYER_MOVE_SPEED;
             }
-            if self.dir.down && self.body.y < SCREEN_SIZE.1 - GRID_CELL_SIZE {
+            if self.dir.down && self.body.y < SCREEN_SIZE.1 - (GRID_CELL_SIZE * 2.0) {
                 self.body.y += PLAYER_MOVE_SPEED;
             }
             if self.dir.left && self.body.x > 0.0 {
@@ -221,7 +218,7 @@ impl Hud {
         };
         let bottom_back = graphics::Rect {
                 x: 0.0,
-                y: 608.0,
+                y: SCREEN_SIZE.1 - GRID_CELL_SIZE,
                 w: 1000.0,
                 h: GRID_CELL_SIZE,
         };
@@ -231,7 +228,7 @@ impl Hud {
         let bottom_rectangle =
             graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), bottom_back, color)?;
         graphics::draw(ctx, &bottom_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
-        let text = graphics::Text::new(graphics::TextFragment {
+        let player_name = graphics::Text::new(graphics::TextFragment {
                 text: format!("Player: {}", player.name),
                 color: Some(graphics::Color::new(1.0, 1.0, 1.0, 1.0)),
                 // `Font` is a handle to a loaded TTF, stored inside the `Context`.
@@ -240,7 +237,37 @@ impl Hud {
                 scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
                 ..Default::default()
             });
-        graphics::queue_text(ctx, &text, ggez::mint::Point2 { x: 0.0, y: 0.0 }, None);
+        let hp_text = graphics::Text::new(graphics::TextFragment {
+                text: format!("{}", player.hp),
+                color: Some(graphics::Color::new(1.0, 0.2, 0.2, 1.0)),
+                // `Font` is a handle to a loaded TTF, stored inside the `Context`.
+                // `Font::default()` always exists and maps to DejaVuSerif.
+                font: Some(graphics::Font::default()),
+                scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
+                ..Default::default()
+            });
+        let str_text = graphics::Text::new(graphics::TextFragment {
+                text: format!("{}", player.str),
+                color: Some(graphics::Color::new(1.0, 1.0, 0.2, 1.0)),
+                // `Font` is a handle to a loaded TTF, stored inside the `Context`.
+                // `Font::default()` always exists and maps to DejaVuSerif.
+                font: Some(graphics::Font::default()),
+                scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
+                ..Default::default()
+            });
+        let mp_text = graphics::Text::new(graphics::TextFragment {
+                text: format!("{}", player.mp),
+                color: Some(graphics::Color::new(0.2, 0.2, 1.0, 1.0)),
+                // `Font` is a handle to a loaded TTF, stored inside the `Context`.
+                // `Font::default()` always exists and maps to DejaVuSerif.
+                font: Some(graphics::Font::default()),
+                scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
+                ..Default::default()
+            });
+        graphics::queue_text(ctx, &str_text, ggez::mint::Point2 { x: 130.0, y: SCREEN_SIZE.1 - GRID_CELL_SIZE }, None);
+        graphics::queue_text(ctx, &mp_text, ggez::mint::Point2 { x: 70.0, y: SCREEN_SIZE.1 - GRID_CELL_SIZE }, None);
+        graphics::queue_text(ctx, &hp_text, ggez::mint::Point2 { x: 0.0, y: SCREEN_SIZE.1 - GRID_CELL_SIZE }, None);
+        graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: 0.0, y: 0.0 }, None);
         graphics::draw_queued_text(
                 ctx,
                 graphics::DrawParam::new()
@@ -309,8 +336,8 @@ impl event::EventHandler for GameState {
                         // and move it to this new position.
                         Ate::Food => {
                             let mut rng = rand::thread_rng();
-                            self.food.pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
-                                                       y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 }
+                            self.food.pos = Position { x: rng.gen_range(0, (SCREEN_SIZE.0 - GRID_CELL_SIZE) as i16) as f32,
+                                                       y: rng.gen_range(0, (SCREEN_SIZE.1 - GRID_CELL_SIZE) as i16) as f32 }
                         }
                     }
                 }
