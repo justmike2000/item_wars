@@ -195,6 +195,46 @@ impl Player {
             [1.0, 0.5, 0.0, 1.0].into(),
         )?;
         graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+
+        let player_name = graphics::Text::new(graphics::TextFragment {
+            text: format!("{}", self.name),
+            color: Some(graphics::Color::new(1.0, 1.0, 1.0, 1.0)),
+            // `Font` is a handle to a loaded TTF, stored inside the `Context`.
+            // `Font::default()` always exists and maps to DejaVuSerif.
+            font: Some(graphics::Font::default()),
+            scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
+            ..Default::default()
+        });
+        let player_hp = graphics::Text::new(graphics::TextFragment {
+            text: format!("{}", self.hp),
+            color: Some(graphics::Color::new(0.6, 0.0, 0.0, 1.0)),
+            // `Font` is a handle to a loaded TTF, stored inside the `Context`.
+            // `Font::default()` always exists and maps to DejaVuSerif.
+            font: Some(graphics::Font::default()),
+            scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
+            ..Default::default()
+        });
+        let player_mp = graphics::Text::new(graphics::TextFragment {
+            text: format!("{}", self.mp),
+            color: Some(graphics::Color::new(0.0, 0.0, 0.3, 1.0)),
+            // `Font` is a handle to a loaded TTF, stored inside the `Context`.
+            // `Font::default()` always exists and maps to DejaVuSerif.
+            font: Some(graphics::Font::default()),
+            scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
+            ..Default::default()
+        });
+    graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0), y: self.body.y - GRID_CELL_SIZE }, None);
+    graphics::queue_text(ctx, &player_hp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 5.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
+    graphics::queue_text(ctx, &player_mp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 40.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
+    graphics::draw_queued_text(
+            ctx,
+            graphics::DrawParam::new()
+                .dest(ggez::mint::Point2 { x: 0.0, y: 0.0}),
+                //.rotation(-0.5),
+            None,
+            graphics::FilterMode::Linear,
+        )?;
+
         Ok(())
     }
 }
