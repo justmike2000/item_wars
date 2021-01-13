@@ -344,7 +344,7 @@ impl GameState {
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
-                                          y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
+                                  y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
         let player = Player::new(player_name, player_pos);
 
         GameState {
@@ -445,6 +445,16 @@ impl event::EventHandler for GameState {
 }
 
 fn main() -> GameResult {
+    let mut input = String::new();
+    let mut size = 0;
+    while size <= 0 || size > 9 {
+        input = "".to_string();
+        println!("Enter Player Name (Limit 8 chars): ");
+        size = match io::stdin().read_line(&mut input) {
+            Ok(n) => n,
+            Err(error) => panic!("error: {}", error),
+        };
+    }
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
         let mut path = path::PathBuf::from(manifest_dir);
         path.push("textures");
@@ -465,22 +475,11 @@ fn main() -> GameResult {
         .build()?;
 
     // To enable fullscreen
-    graphics::set_fullscreen(&mut ctx, ggez::conf::FullscreenType::True).unwrap();
+    //graphics::set_fullscreen(&mut ctx, ggez::conf::FullscreenType::True).unwrap();
 
     // Load our textures
-    let image = graphics::Image::new(&mut ctx,
-                                                        "/tile.png").unwrap();
+    let image = graphics::Image::new(&mut ctx, "/tile.png").unwrap();
 
-    let mut input = String::new();
-    let mut size = 0;
-    while size <= 0 || size > 9 {
-        input = "".to_string();
-        println!("Enter Player Name (Limit 8 chars): ");
-        size = match io::stdin().read_line(&mut input) {
-            Ok(n) => n,
-            Err(error) => panic!("error: {}", error),
-        };
-    }
     // Next we create a new instance of our GameState struct, which implements EventHandler
     let state = GameState::new(input);
     // And finally we actually run our game, passing in our context and state.
