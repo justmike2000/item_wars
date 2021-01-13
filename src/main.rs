@@ -7,6 +7,8 @@ use graphics::Rect;
 
 use std::time::{Duration, Instant};
 use std::io;
+use std::path;
+use std::env;
 
 use rand::Rng;
 
@@ -443,6 +445,14 @@ impl event::EventHandler for GameState {
 }
 
 fn main() -> GameResult {
+    let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+        let mut path = path::PathBuf::from(manifest_dir);
+        path.push("textures");
+        path
+    } else {
+        path::PathBuf::from("./textures")
+    };
+
     // Here we use a ContextBuilder to setup metadata about our game. First the title and author
     let (mut ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
         // Next we set up the window. This title will be displayed in the title bar of the window.
@@ -451,10 +461,15 @@ fn main() -> GameResult {
         .window_mode(ggez::conf::WindowMode::default().dimensions(SCREEN_SIZE.0, SCREEN_SIZE.1))
         // And finally we attempt to build the context and create the window. If it fails, we panic with the message
         // "Failed to build ggez context"
+        .add_resource_path(resource_dir)
         .build()?;
 
     // To enable fullscreen
     graphics::set_fullscreen(&mut ctx, ggez::conf::FullscreenType::True).unwrap();
+
+    // Load our textures
+    let image = graphics::Image::new(&mut ctx,
+                                                        "/tile.png").unwrap();
 
     let mut input = String::new();
     let mut size = 0;
