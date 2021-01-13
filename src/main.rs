@@ -224,7 +224,7 @@ impl Player {
             scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
             ..Default::default()
         });
-    graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0), y: self.body.y - GRID_CELL_SIZE }, None);
+    graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: self.body.x - (self.name.chars().count() as f32), y: self.body.y - GRID_CELL_SIZE }, None);
     graphics::queue_text(ctx, &player_hp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 5.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
     graphics::queue_text(ctx, &player_mp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 40.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
     graphics::draw_queued_text(
@@ -414,10 +414,10 @@ impl event::EventHandler for GameState {
         _keymod: KeyMods,
     ) {
         match keycode {
-            KeyCode::Left => self.player.dir.left = false,
-            KeyCode::Right => self.player.dir.right = false,
-            KeyCode::Up => self.player.dir.up = false,
-            KeyCode::Down => self.player.dir.down = false,
+            KeyCode::A => self.player.dir.left = false,
+            KeyCode::D => self.player.dir.right = false,
+            KeyCode::W => self.player.dir.up = false,
+            KeyCode::S => self.player.dir.down = false,
             _ => ()
         };
         self.player.moving = false;
@@ -432,10 +432,10 @@ impl event::EventHandler for GameState {
         _repeat: bool,
     ) {
         match keycode {
-            KeyCode::Left => self.player.dir.left = true,
-            KeyCode::Right => self.player.dir.right = true,
-            KeyCode::Up => self.player.dir.up = true,
-            KeyCode::Down => self.player.dir.down = true,
+            KeyCode::A => self.player.dir.left = true,
+            KeyCode::D => self.player.dir.right = true,
+            KeyCode::W => self.player.dir.up = true,
+            KeyCode::S => self.player.dir.down = true,
             _ => ()
         };
         self.player.moving = true;
@@ -458,7 +458,7 @@ fn main() -> GameResult {
 
     let mut input = String::new();
     let mut size = 0;
-    while size <= 0 || size > 8 {
+    while size <= 0 || size > 9 {
         input = "".to_string();
         println!("Enter Player Name (Limit 8 chars): ");
         size = match io::stdin().read_line(&mut input) {
