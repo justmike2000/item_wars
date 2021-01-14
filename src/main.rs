@@ -2,13 +2,15 @@
 //! Repo: https://github.com/justmike2000/item_wars/
 
 use ggez::event::{KeyCode, KeyMods};
-use ggez::{event, graphics, Context, GameResult};
-use graphics::Rect;
+use ggez::{event, graphics, Context, GameResult, timer};
+use graphics::{GlBackendSpec, ImageGeneric, Rect};
+use glam::*;
 
 use std::time::{Duration, Instant};
 use std::io;
 use std::path;
 use std::env;
+use std::collections::HashMap;
 
 use rand::Rng;
 
@@ -337,10 +339,11 @@ struct GameState {
     /// our update rate.
     last_update: Instant,
     hud: Hud,
+    textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>
 }
 
 impl GameState {
-    pub fn new(player_name: String) -> Self {
+    pub fn new(player_name: String, textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
@@ -353,6 +356,7 @@ impl GameState {
             hud: Hud::new(),
             gameover: false,
             last_update: Instant::now(),
+            textures,
         }
     }
 }
@@ -396,6 +400,20 @@ impl event::EventHandler for GameState {
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         // First we clear the screen to a nice (well, maybe pretty glaring ;)) green
         graphics::clear(ctx, [0.0, 0.5, 0.0, 1.0].into());
+        //let time = (timer::duration_to_f64(timer::time_since_start(ctx)) * 1000.0) as u32;
+        //let cycle = 10_000;
+        let param = graphics::DrawParam::new()
+        .dest(Vec2::new(0.0, 0.0));
+        //    ((time % cycle) as f32 / cycle as f32 * 6.28).cos() * 50.0 - 150.0,
+        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin() * 50.0 - 150.0,
+        //))
+        //.scale(Vec2::new(
+        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin().abs() * 2.0 + 1.0,
+        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin().abs() * 2.0 + 1.0,
+        //))
+        //.rotation((time % cycle) as f32 / cycle as f32 * 6.28)
+        //.offset(Vec2::new(150.0, 150.0));
+        graphics::draw(ctx, self.textures.get("background").unwrap(), param)?;
         // Then we tell the player and the food to draw themselves
         self.player.draw(ctx)?;
         self.food.draw(ctx)?;
@@ -478,10 +496,11 @@ fn main() -> GameResult {
     //graphics::set_fullscreen(&mut ctx, ggez::conf::FullscreenType::True).unwrap();
 
     // Load our textures
-    let image = graphics::Image::new(&mut ctx, "/tile.png").unwrap();
+    let mut textures: HashMap<String, ImageGeneric<GlBackendSpec>> = HashMap::new();
+    textures.insert("background".to_string(), graphics::Image::new(&mut ctx, "/tile.png").unwrap());
 
     // Next we create a new instance of our GameState struct, which implements EventHandler
-    let state = GameState::new(input);
+    let state = GameState::new(input, textures);
     // And finally we actually run our game, passing in our context and state.
     event::run(ctx, events_loop, state)
 }
