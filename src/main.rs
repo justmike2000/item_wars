@@ -201,6 +201,14 @@ impl Player {
         )?;
         graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
 
+        let rectangle = graphics::Mesh::new_rectangle(
+            ctx,
+            graphics::DrawMode::fill(),
+            Rect::new(self.body.x - 15.0, self.body.y - 35.0, 60.0, 35.0),
+            [0.0, 0.0, 0.0, 1.0].into(),
+        )?;
+        graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+
         let player_name = graphics::Text::new(graphics::TextFragment {
             text: format!("{}", self.name),
             color: Some(graphics::Color::new(1.0, 1.0, 1.0, 1.0)),
@@ -212,7 +220,7 @@ impl Player {
         });
         let player_hp = graphics::Text::new(graphics::TextFragment {
             text: format!("{}", self.hp),
-            color: Some(graphics::Color::new(0.6, 0.0, 0.0, 1.0)),
+            color: Some(graphics::Color::new(0.9, 0.0, 0.0, 1.0)),
             // `Font` is a handle to a loaded TTF, stored inside the `Context`.
             // `Font::default()` always exists and maps to DejaVuSerif.
             font: Some(graphics::Font::default()),
@@ -221,7 +229,7 @@ impl Player {
         });
         let player_mp = graphics::Text::new(graphics::TextFragment {
             text: format!("{}", self.mp),
-            color: Some(graphics::Color::new(0.0, 0.0, 0.3, 1.0)),
+            color: Some(graphics::Color::new(0.0, 0.4, 1.0, 1.0)),
             // `Font` is a handle to a loaded TTF, stored inside the `Context`.
             // `Font::default()` always exists and maps to DejaVuSerif.
             font: Some(graphics::Font::default()),
@@ -302,7 +310,7 @@ impl Hud {
             });
         let mp_text = graphics::Text::new(graphics::TextFragment {
                 text: format!("{}", player.mp),
-                color: Some(graphics::Color::new(0.2, 0.2, 1.0, 1.0)),
+                color: Some(graphics::Color::new(0.0, 0.4, 1.0, 1.0)),
                 // `Font` is a handle to a loaded TTF, stored inside the `Context`.
                 // `Font::default()` always exists and maps to DejaVuSerif.
                 font: Some(graphics::Font::default()),
@@ -407,7 +415,7 @@ impl event::EventHandler for GameState {
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).cos() * 50.0 - 150.0,
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin() * 50.0 - 150.0,
         //))
-        //.scale(Vec2::new(
+        //.scale(Vec2::new(0.0, 0.0));
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin().abs() * 2.0 + 1.0,
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin().abs() * 2.0 + 1.0,
         //))
@@ -464,15 +472,17 @@ impl event::EventHandler for GameState {
 
 fn main() -> GameResult {
     let mut input = String::new();
-    let mut size = 0;
-    while size <= 0 || size > 9 {
-        input = "".to_string();
-        println!("Enter Player Name (Limit 8 chars): ");
-        size = match io::stdin().read_line(&mut input) {
-            Ok(n) => n,
-            Err(error) => panic!("error: {}", error),
-        };
-    }
+    //let mut size = 0;
+    //while size <= 0 || size > 9 {
+    //    input = "".to_string();
+    //    println!("Enter Player Name (Limit 8 chars): ");
+    //    size = match io::stdin().read_line(&mut input) {
+    //        Ok(n) => n,
+    //        Err(error) => panic!("error: {}", error),
+    //    };
+    //}
+    input = "Fred".to_string();
+
     let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
         let mut path = path::PathBuf::from(manifest_dir);
         path.push("textures");
