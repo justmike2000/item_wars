@@ -250,7 +250,9 @@ impl Player {
             graphics::FilterMode::Linear,
         )?;
         let param = graphics::DrawParam::new()
-        .dest(Vec2::new(0.0, 0.0));
+        .dest(Vec2::new(self.body.x, self.body.y))
+        //.offset(Vec2::new(10.0, 10.0))
+        .scale(Vec2::new(0.1, 0.1));
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).cos() * 50.0 - 150.0,
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin() * 50.0 - 150.0,
         //))
