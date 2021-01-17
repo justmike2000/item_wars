@@ -201,7 +201,7 @@ impl Player {
             self.body.into(),
             [1.0, 0.5, 0.0, 1.0].into(),
         )?;
-        graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        //graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
 
         let rectangle = graphics::Mesh::new_rectangle(
             ctx,
@@ -250,6 +250,7 @@ impl Player {
             graphics::FilterMode::Linear,
         )?;
         let param = graphics::DrawParam::new()
+        .src(graphics::Rect {x: 0.0, y: 0.0, w: 0.25, h: 0.25})
         .dest(Vec2::new(self.body.x, self.body.y))
         //.offset(Vec2::new(10.0, 10.0))
         .scale(Vec2::new(0.1, 0.1));
