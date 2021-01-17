@@ -131,10 +131,11 @@ struct Player {
     mp: i64,
     str: i64,
     moving: bool,
+    texture: ImageGeneric<GlBackendSpec>,
 }
 
 impl Player {
-    pub fn new(name: String, pos: Position) -> Self {
+    pub fn new(name: String, pos: Position, texture: ImageGeneric<GlBackendSpec>) -> Self {
         // Our player will initially have a body and one body segment,
         // and will be moving to the right.
         Player {
@@ -145,7 +146,8 @@ impl Player {
             moving: false,
             hp: PLAYER_MAX_HP,
             mp: PLAYER_MAX_MP,
-            str: PLAYER_MAX_STR
+            str: PLAYER_MAX_STR,
+            texture: texture
         }
     }
 
@@ -247,6 +249,18 @@ impl Player {
             None,
             graphics::FilterMode::Linear,
         )?;
+        let param = graphics::DrawParam::new()
+        .dest(Vec2::new(0.0, 0.0));
+        //    ((time % cycle) as f32 / cycle as f32 * 6.28).cos() * 50.0 - 150.0,
+        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin() * 50.0 - 150.0,
+        //))
+        //.scale(Vec2::new(0.0, 0.0));
+        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin().abs() * 2.0 + 1.0,
+        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin().abs() * 2.0 + 1.0,
+        //))
+        //.rotation((time % cycle) as f32 / cycle as f32 * 6.28)
+        //.offset(Vec2::new(150.0, 150.0));
+        graphics::draw(ctx, &self.texture, param)?;
 
         Ok(())
     }
@@ -351,12 +365,13 @@ struct GameState {
 }
 
 impl GameState {
-    pub fn new(player_name: String, textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
+    pub fn new(player_name: String, mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
                                   y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
-        let player = Player::new(player_name, player_pos);
+        let player_texture = textures.remove("hero").unwrap();
+        let player = Player::new(player_name, player_pos, player_texture);
 
         GameState {
             player: player,
@@ -446,6 +461,7 @@ impl event::EventHandler for GameState {
             KeyCode::D => self.player.dir.right = false,
             KeyCode::W => self.player.dir.up = false,
             KeyCode::S => self.player.dir.down = false,
+            KeyCode::Escape => panic!("Escape!"),
             _ => ()
         };
         self.player.moving = false;
@@ -508,6 +524,7 @@ fn main() -> GameResult {
     // Load our textures
     let mut textures: HashMap<String, ImageGeneric<GlBackendSpec>> = HashMap::new();
     textures.insert("background".to_string(), graphics::Image::new(&mut ctx, "/tile.png").unwrap());
+    textures.insert("hero".to_string(), graphics::Image::new(&mut ctx, "/hero.png").unwrap());
 
     // Next we create a new instance of our GameState struct, which implements EventHandler
     let state = GameState::new(input, textures);
