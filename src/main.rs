@@ -22,8 +22,11 @@ const GRID_CELL_SIZE: f32 = 32.0;
 const PLAYER_MAX_HP: i64 = 100;
 const PLAYER_MAX_MP: i64 = 30;
 const PLAYER_MAX_STR: i64 = 10;
-const PLAYER_MOVE_SPEED: f32 = 10.0;
-const PLAYER_TOP_ACCEL_SPEED: i32 = 5;
+const PLAYER_MOVE_SPEED: f32 = 3.0;
+const PLAYER_TOP_ACCEL_SPEED: f32 = 5.0;
+const PLAYER_ACCEL_SPEED: f32 = 0.2;
+
+const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
@@ -119,6 +122,7 @@ struct Player {
     /// Then we have the current direction the player is moving. This is
     /// the direction it will move when `update` is called on it.
     dir: Direction,
+    last_dir: Direction,
     /// Now we have a property that represents the result of the last update
     /// that was performed. The player could have eaten nothing (None), Food (Some(Ate::Food)),
     /// or Itself (Some(Ate::Itself))
@@ -131,6 +135,7 @@ struct Player {
     mp: i64,
     str: i64,
     moving: bool,
+    current_accel: f32,
     texture: ImageGeneric<GlBackendSpec>,
     animation_frame: f32,
     animation_total_frames: f32,
@@ -146,8 +151,10 @@ impl Player {
             name,
             body: pos,
             dir: Direction::default(),
+            last_dir: Direction::default(),
             ate: None,
             moving: false,
+            current_accel: 0.0,
             hp: PLAYER_MAX_HP,
             mp: PLAYER_MAX_MP,
             str: PLAYER_MAX_STR,
@@ -167,18 +174,51 @@ impl Player {
         }
     }
 
+    fn reset_last_dir(&mut self) {
+        self.last_dir.left = false;
+        self.last_dir.right = false;
+        self.last_dir.up = false;
+        self.last_dir.down = false;
+    }
+
     fn move_direction(&mut self) {
-            if self.dir.up && self.body.y > GRID_CELL_SIZE {
-                self.body.y -= PLAYER_MOVE_SPEED;
+        self.reset_last_dir();
+        if self.current_accel < PLAYER_TOP_ACCEL_SPEED {
+            self.current_accel += PLAYER_ACCEL_SPEED;
+        }
+        if self.dir.up && self.body.y > GRID_CELL_SIZE {
+            self.body.y -= PLAYER_MOVE_SPEED + self.current_accel;
+            self.last_dir.up = true;
+        }
+        if self.dir.down && self.body.y < SCREEN_SIZE.1 - (GRID_CELL_SIZE * 2.0) {
+            self.body.y += PLAYER_MOVE_SPEED + self.current_accel;
+            self.last_dir.down = true;
+        }
+        if self.dir.left && self.body.x > 0.0 {
+            self.body.x -= PLAYER_MOVE_SPEED + self.current_accel;
+            self.last_dir.left = true;
+        }
+        if self.dir.right && self.body.x < SCREEN_SIZE.0 - GRID_CELL_SIZE {
+            self.body.x += PLAYER_MOVE_SPEED + self.current_accel;
+            self.last_dir.right = true;
+        }
+    }
+
+    fn move_direction_cooldown(&mut self) {
+            if self.last_dir.up && self.body.y > GRID_CELL_SIZE {
+                self.body.y -= PLAYER_MOVE_SPEED + self.current_accel;
             }
-            if self.dir.down && self.body.y < SCREEN_SIZE.1 - (GRID_CELL_SIZE * 2.0) {
-                self.body.y += PLAYER_MOVE_SPEED;
+            if self.last_dir.down && self.body.y < SCREEN_SIZE.1 - (GRID_CELL_SIZE * 2.0) {
+                self.body.y += PLAYER_MOVE_SPEED + self.current_accel;
             }
-            if self.dir.left && self.body.x > 0.0 {
-                self.body.x -= PLAYER_MOVE_SPEED;
+            if self.last_dir.left && self.body.x > 0.0 {
+                self.body.x -= PLAYER_MOVE_SPEED + self.current_accel;
             }
-            if self.dir.right && self.body.x < SCREEN_SIZE.0 - GRID_CELL_SIZE {
-                self.body.x += PLAYER_MOVE_SPEED;
+            if self.last_dir.right && self.body.x < SCREEN_SIZE.0 - GRID_CELL_SIZE {
+                self.body.x += PLAYER_MOVE_SPEED + self.current_accel;
+            }
+            if self.current_accel > 0.0 {
+                self.current_accel -= (PLAYER_ACCEL_SPEED * MAP_CURRENT_FRICTION);
             }
     }
 
@@ -187,6 +227,8 @@ impl Player {
     fn update(&mut self, food: &Food) {
         if self.moving {
             self.move_direction()
+        } else if self.current_accel > 0.0 {
+            self.move_direction_cooldown()
         }
         if self.eats(food) {
             self.ate = Some(Ate::Food);
