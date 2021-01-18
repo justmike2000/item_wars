@@ -26,6 +26,7 @@ const PLAYER_MOVE_SPEED: f32 = 3.0;
 const PLAYER_TOP_ACCEL_SPEED: f32 = 5.0;
 const PLAYER_ACCEL_SPEED: f32 = 0.2;
 const PLAYER_STARTING_ACCEL: f32 = 0.4;
+const PLAYER_JUMP_HEIGHT: f32 = 0.5;
 
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
@@ -130,6 +131,9 @@ struct Player {
     mp: i64,
     str: i64,
     current_accel: f32,
+    jumping: bool,
+    jump_offset: f32,
+    jump_direction: bool, // true up false down
     texture: ImageGeneric<GlBackendSpec>,
     animation_frame: f32,
     animation_total_frames: f32,
@@ -152,6 +156,9 @@ impl Player {
             mp: PLAYER_MAX_MP,
             str: PLAYER_MAX_STR,
             texture: texture,
+            jumping: false,
+            jump_offset: 0.0,
+            jump_direction: true,
             animation_frame: 0.0,
             animation_total_frames: 4.0,
             last_animation: std::time::Instant::now(),
@@ -219,10 +226,20 @@ impl Player {
         self.dir.up || self.dir.down || self.dir.left || self.dir.right
     }
 
-    /// The main update function for our player which gets called every time
-    /// we want to update the game state.
     fn update(&mut self, food: &Potion) {
-        if self.is_moving() {
+        if self.jumping {
+            if self.jump_direction && self.jump_offset < PLAYER_JUMP_HEIGHT {
+                self.jump_offset += 0.1;
+            } else if self.jump_direction && self.jump_offset == PLAYER_JUMP_HEIGHT {
+                self.jump_direction = false;
+            } else if !self.jump_direction && self.jump_offset <= PLAYER_JUMP_HEIGHT && self.jump_offset > 0.0 {
+                self.jump_offset -= 0.1;
+            } else {
+                self.jumping = false;
+                self.jump_offset = 0.0;
+                self.jump_direction = true;
+            }
+        } else if self.is_moving() {
             self.move_direction()
         } else if self.current_accel > PLAYER_STARTING_ACCEL {
             self.move_direction_cooldown()
@@ -266,6 +283,18 @@ impl Player {
         //    [1.0, 0.5, 0.0, 1.0].into(),
         //)?;
         //graphics::draw(ctx, &bounding_box_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+
+        if self.jumping {
+            let bounding_box_rectangle = graphics::Mesh::new_circle(
+                ctx,
+                graphics::DrawMode::fill(),
+                ggez::mint::Point2 { x: self.body.x + 15.0,  y: self.body.y + 47.0 },
+                14.0,
+                1.0,
+                graphics::Color::new(0.0, 0.0, 0.0, 0.3),
+            )?;
+            graphics::draw(ctx, &bounding_box_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        }
 
         let black_rectangle = graphics::Mesh::new_rectangle(
             ctx,
@@ -317,7 +346,7 @@ impl Player {
         let param = graphics::DrawParam::new()
         .src(graphics::Rect {x: self.animation_frame, y: self.get_animation_direction(), w: 0.25, h: 0.25})
         .dest(Vec2::new(self.body.x + 2.0, self.body.y - 10.0))
-        .offset(Vec2::new(0.15, 0.0))
+        .offset(Vec2::new(0.15, self.jump_offset))
         .scale(Vec2::new(0.1, 0.1));
         //.rotation((time % cycle) as f32 / cycle as f32 * 6.28)
         //.offset(Vec2::new(150.0, 150.0));
@@ -541,6 +570,7 @@ impl event::EventHandler for GameState {
             KeyCode::D => self.player.dir.right = true,
             KeyCode::W => self.player.dir.up = true,
             KeyCode::S => self.player.dir.down = true,
+            KeyCode::Space => self.player.jumping = true,
             _ => ()
         };
     }
