@@ -266,6 +266,14 @@ impl Player {
             0.5
         } else if self.dir.right {
             0.75
+        } else if self.dir.down {
+            0.0
+        } else if self.last_dir.left {
+            0.5
+        } else if self.last_dir.right {
+           0.75
+        } else if self.last_dir.up {
+            0.25
         } else {
             0.0
         }
