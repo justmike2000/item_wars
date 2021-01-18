@@ -257,17 +257,30 @@ impl Player {
             None,
             graphics::FilterMode::Linear,
         )?;
-    if self.moving && self.last_animation.elapsed() > self.animation_duration {
-        self.last_animation = Instant::now();
-        self.animation_frame += 1.0 / self.animation_total_frames;
-        if self.animation_frame >= 1.0 {
-            self.animation_frame = 0.0;
+        // Animation direction
+        let animation_frame  = {
+            if self.dir.up {
+                0.25
+            } else if self.dir.left {
+                0.5
+            } else if self.dir.right {
+                0.75
+            } else {
+                0.0
+            }
+        };
+        // Animation movement
+        if self.moving && self.last_animation.elapsed() > self.animation_duration {
+            self.last_animation = Instant::now();
+            self.animation_frame += 1.0 / self.animation_total_frames;
+            if self.animation_frame >= 1.0 {
+                self.animation_frame = 0.0;
+            }
         }
-    }
         let param = graphics::DrawParam::new()
-        .src(graphics::Rect {x: self.animation_frame, y: 0.0, w: 0.25, h: 0.25})
+        .src(graphics::Rect {x: self.animation_frame, y: animation_frame, w: 0.25, h: 0.25})
         .dest(Vec2::new(self.body.x, self.body.y))
-        //.offset(Vec2::new(0.0, 0.3))
+        .offset(Vec2::new(0.15, 0.0))
         .scale(Vec2::new(0.1, 0.1));
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).cos() * 50.0 - 150.0,
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin() * 50.0 - 150.0,
