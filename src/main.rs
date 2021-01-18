@@ -32,6 +32,8 @@ const PLAYER_TOP_ACCEL_SPEED: f32 = 5.0;
 const PLAYER_ACCEL_SPEED: f32 = 0.2;
 const PLAYER_STARTING_ACCEL: f32 = 0.4;
 const PLAYER_JUMP_HEIGHT: f32 = 0.5;
+const PLAYER_CELL_HEIGHT: f32 = 42.0;
+const PLAYER_CELL_WIDTH: f32 = 32.0;
 
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
@@ -191,11 +193,11 @@ impl Player {
         if self.current_accel < PLAYER_TOP_ACCEL_SPEED {
             self.current_accel += PLAYER_ACCEL_SPEED;
         }
-        if self.dir.up && self.body.y > GRID_CELL_SIZE {
+        if self.dir.up && self.body.y > PLAYER_CELL_HEIGHT {
             self.body.y -= PLAYER_MOVE_SPEED + self.current_accel;
             self.last_dir.up = true;
         }
-        if self.dir.down && self.body.y < SCREEN_SIZE.1 - (GRID_CELL_SIZE * 2.0) {
+        if self.dir.down && self.body.y < SCREEN_SIZE.1 - (PLAYER_CELL_HEIGHT * 2.0) {
             self.body.y += PLAYER_MOVE_SPEED + self.current_accel;
             self.last_dir.down = true;
         }
@@ -203,23 +205,23 @@ impl Player {
             self.body.x -= PLAYER_MOVE_SPEED + self.current_accel;
             self.last_dir.left = true;
         }
-        if self.dir.right && self.body.x < SCREEN_SIZE.0 - GRID_CELL_SIZE {
+        if self.dir.right && self.body.x < SCREEN_SIZE.0 - PLAYER_CELL_WIDTH {
             self.body.x += PLAYER_MOVE_SPEED + self.current_accel;
             self.last_dir.right = true;
         }
     }
 
     fn move_direction_cooldown(&mut self) {
-            if self.last_dir.up && self.body.y > GRID_CELL_SIZE {
+            if self.last_dir.up && self.body.y > PLAYER_CELL_HEIGHT {
                 self.body.y -= PLAYER_MOVE_SPEED + self.current_accel;
             }
-            if self.last_dir.down && self.body.y < SCREEN_SIZE.1 - (GRID_CELL_SIZE * 2.0) {
+            if self.last_dir.down && self.body.y < SCREEN_SIZE.1 - (PLAYER_CELL_HEIGHT * 2.0) {
                 self.body.y += PLAYER_MOVE_SPEED + self.current_accel;
             }
             if self.last_dir.left && self.body.x > 0.0 {
                 self.body.x -= PLAYER_MOVE_SPEED + self.current_accel;
             }
-            if self.last_dir.right && self.body.x < SCREEN_SIZE.0 - GRID_CELL_SIZE {
+            if self.last_dir.right && self.body.x < SCREEN_SIZE.0 - PLAYER_CELL_WIDTH {
                 self.body.x += PLAYER_MOVE_SPEED + self.current_accel;
             }
             if self.current_accel > 0.0 {
