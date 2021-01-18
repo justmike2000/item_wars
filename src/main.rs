@@ -239,7 +239,8 @@ impl Player {
                 self.jump_offset = 0.0;
                 self.jump_direction = true;
             }
-        } else if self.is_moving() {
+        }
+        if self.is_moving() {
             self.move_direction()
         } else if self.current_accel > PLAYER_STARTING_ACCEL {
             self.move_direction_cooldown()
