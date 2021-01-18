@@ -482,6 +482,41 @@ impl GameServer {
 
         println!("Request: {}", String::from_utf8_lossy(&buffer[..]));
     }
+
+    fn send_message(msg: String) {
+        match TcpStream::connect("localhost:7878") {
+            Ok(mut stream) => {
+                println!("Successfully connected to server in port 7878");
+    
+                let msg = format!("{}", msg);
+    
+                stream.write(msg.as_bytes()).unwrap();
+                println!("Sent {} awaiting reply...", msg);
+    
+                let mut data = [0 as u8; 7]; 
+                match stream.read(&mut data) {
+                    Ok(_) => {
+                        if &data == "got it!".as_bytes() {
+                            println!("Reply is ok!");
+                        } else {
+                            let text = from_utf8(&data).unwrap();
+                            println!("Unexpected reply: {}", text);
+                        }
+                    },
+                    Err(e) => {
+                        println!("Failed to receive data: {}", e);
+                    }
+                }
+            },
+            Err(e) => {
+                println!("Failed to connect: {}", e);
+            }
+        }
+    }
+
+    fn new_game() {
+
+    }
 }
 
 struct GameState {
@@ -501,35 +536,8 @@ struct GameState {
 impl GameState {
 
     fn connect_client(player: String) {
-        match TcpStream::connect("localhost:7878") {
-            Ok(mut stream) => {
-                println!("Successfully connected to server in port 7878");
-    
-                let msg = format!("Hello {}!", player);
-    
-                stream.write(msg.as_bytes()).unwrap();
-                println!("Sent Hello, awaiting reply...");
-    
-                let mut data = [0 as u8; 7]; 
-                match stream.read(&mut data) {
-                    Ok(_) => {
-                        println!("{:?} {:?}", &data, "got it!".as_bytes());
-                        if &data == "got it!".as_bytes() {
-                            println!("Reply is ok!");
-                        } else {
-                            let text = from_utf8(&data).unwrap();
-                            println!("Unexpected reply: {}", text);
-                        }
-                    },
-                    Err(e) => {
-                        println!("Failed to receive data: {}", e);
-                    }
-                }
-            },
-            Err(e) => {
-                println!("Failed to connect: {}", e);
-            }
-        }
+        let msg = format!("Hello server, it's {}!", player);
+        GameServer::send_message(msg);
     }
 
     pub fn new(player_name: String, mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
@@ -665,12 +673,12 @@ fn main() -> GameResult {
             io::stdin().read_line(&mut server_input);
             server_input.retain(|c| !c.is_whitespace());
             match server_input.to_ascii_lowercase().as_str() {
-                "" => {
+                "new game" => {
+                    //gameserver::new_game();
                 },
                 "exit" => {
                     panic!("Exit!");
                 },
-                _ => {},
                 _ => {},
             }
         }
