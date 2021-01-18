@@ -132,6 +132,10 @@ struct Player {
     str: i64,
     moving: bool,
     texture: ImageGeneric<GlBackendSpec>,
+    animation_frame: f32,
+    animation_total_frames: f32,
+    last_animation: std::time::Instant,
+    animation_duration: std::time::Duration,
 }
 
 impl Player {
@@ -147,7 +151,11 @@ impl Player {
             hp: PLAYER_MAX_HP,
             mp: PLAYER_MAX_MP,
             str: PLAYER_MAX_STR,
-            texture: texture
+            texture: texture,
+            animation_frame: 0.0,
+            animation_total_frames: 4.0,
+            last_animation: std::time::Instant::now(),
+            animation_duration:  Duration::new(0, 150_000_000),
         }
     }
 
@@ -193,7 +201,7 @@ impl Player {
     /// Again, note that this approach to drawing is fine for the limited scope of this
     /// example, but larger scale games will likely need a more optimized render path
     /// using SpriteBatch or something similar that batches draw calls.
-    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         // And then we do the same for the head, instead making it fully red to distinguish it.
         let rectangle = graphics::Mesh::new_rectangle(
             ctx,
@@ -238,10 +246,10 @@ impl Player {
             scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
             ..Default::default()
         });
-    graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: self.body.x - (self.name.chars().count() as f32), y: self.body.y - GRID_CELL_SIZE }, None);
-    graphics::queue_text(ctx, &player_hp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 5.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
-    graphics::queue_text(ctx, &player_mp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 40.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
-    graphics::draw_queued_text(
+        graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: self.body.x - (self.name.chars().count() as f32), y: self.body.y - GRID_CELL_SIZE }, None);
+        graphics::queue_text(ctx, &player_hp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 5.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
+        graphics::queue_text(ctx, &player_mp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 40.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
+        graphics::draw_queued_text(
             ctx,
             graphics::DrawParam::new()
                 .dest(ggez::mint::Point2 { x: 0.0, y: 0.0}),
@@ -249,10 +257,17 @@ impl Player {
             None,
             graphics::FilterMode::Linear,
         )?;
+    if self.moving && self.last_animation.elapsed() > self.animation_duration {
+        self.last_animation = Instant::now();
+        self.animation_frame += 1.0 / self.animation_total_frames;
+        if self.animation_frame >= 1.0 {
+            self.animation_frame = 0.0;
+        }
+    }
         let param = graphics::DrawParam::new()
-        .src(graphics::Rect {x: 0.0, y: 0.0, w: 0.25, h: 0.25})
+        .src(graphics::Rect {x: self.animation_frame, y: 0.0, w: 0.25, h: 0.25})
         .dest(Vec2::new(self.body.x, self.body.y))
-        //.offset(Vec2::new(10.0, 10.0))
+        //.offset(Vec2::new(0.0, 0.3))
         .scale(Vec2::new(0.1, 0.1));
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).cos() * 50.0 - 150.0,
         //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin() * 50.0 - 150.0,
