@@ -259,21 +259,21 @@ impl Player {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         // And then we do the same for the head, instead making it fully red to distinguish it.
-        //let rectangle = graphics::Mesh::new_rectangle(
+        //let bounding_box_rectangle = graphics::Mesh::new_rectangle(
         //    ctx,
         //    graphics::DrawMode::fill(),
         //    self.body.into(),
         //    [1.0, 0.5, 0.0, 1.0].into(),
         //)?;
-        //graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        //graphics::draw(ctx, &bounding_box_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
 
-        let rectangle = graphics::Mesh::new_rectangle(
+        let black_rectangle = graphics::Mesh::new_rectangle(
             ctx,
             graphics::DrawMode::fill(),
-            Rect::new(self.body.x - 15.0, self.body.y - 35.0, 60.0, 35.0),
+            Rect::new(self.body.x - 13.0, self.body.y - 45.0, 60.0, 35.0),
             [0.0, 0.0, 0.0, 1.0].into(),
         )?;
-        graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        graphics::draw(ctx, &black_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
 
         let player_name = graphics::Text::new(graphics::TextFragment {
             text: format!("{}", self.name),
@@ -302,9 +302,9 @@ impl Player {
             scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
             ..Default::default()
         });
-        graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: self.body.x - (self.name.chars().count() as f32), y: self.body.y - GRID_CELL_SIZE }, None);
-        graphics::queue_text(ctx, &player_hp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 5.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
-        graphics::queue_text(ctx, &player_mp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 40.0, y: self.body.y - GRID_CELL_SIZE + 15.0}, None);
+        graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: self.body.x - (self.name.chars().count() as f32) + 5.0, y: self.body.y - GRID_CELL_SIZE - 10.0 }, None);
+        graphics::queue_text(ctx, &player_hp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 5.0, y: self.body.y - GRID_CELL_SIZE + 5.0 }, None);
+        graphics::queue_text(ctx, &player_mp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 45.0, y: self.body.y - GRID_CELL_SIZE + 5.0 }, None);
         graphics::draw_queued_text(
             ctx,
             graphics::DrawParam::new()
@@ -316,7 +316,7 @@ impl Player {
         self.animate_frames();
         let param = graphics::DrawParam::new()
         .src(graphics::Rect {x: self.animation_frame, y: self.get_animation_direction(), w: 0.25, h: 0.25})
-        .dest(Vec2::new(self.body.x, self.body.y))
+        .dest(Vec2::new(self.body.x + 2.0, self.body.y - 10.0))
         .offset(Vec2::new(0.15, 0.0))
         .scale(Vec2::new(0.1, 0.1));
         //.rotation((time % cycle) as f32 / cycle as f32 * 6.28)
