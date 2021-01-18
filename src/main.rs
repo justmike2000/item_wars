@@ -11,6 +11,11 @@ use std::io;
 use std::path;
 use std::env;
 use std::collections::HashMap;
+use std::io::prelude::*;
+use std::net::TcpListener;
+use std::net::TcpStream;
+use std::io::{Read, Write};
+use std::str::from_utf8;
 
 use rand::Rng;
 
@@ -438,9 +443,36 @@ impl Hud {
     }
 }
 
-/// Now we have the heart of our game, the GameState. This struct
-/// will implement ggez's `EventHandler` trait and will therefore drive
-/// everything else that happens in our game.
+struct GameServer {
+    
+}
+
+impl GameServer {
+
+    fn new() -> GameServer {
+        GameServer {
+
+        }
+    }
+
+    fn host(&self) {
+        let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+
+        for stream in listener.incoming() {
+            let stream = stream.unwrap();
+            self.handle_connection(stream)
+        }
+    }
+
+    fn handle_connection(&self, mut stream: TcpStream) {
+        let mut buffer = [0; 1024];
+    
+        stream.read(&mut buffer).unwrap();
+    
+        println!("Request: {}", String::from_utf8_lossy(&buffer[..]));
+    }
+}
+
 struct GameState {
     /// First we need a Player
     player: Player,
@@ -456,7 +488,49 @@ struct GameState {
 }
 
 impl GameState {
+
+    fn connect_client() {
+        match TcpStream::connect("localhost:7878") {
+            Ok(mut stream) => {
+                println!("Successfully connected to server in port 7878");
+    
+                let msg = b"Hello!";
+    
+                stream.write(msg).unwrap();
+                println!("Sent Hello, awaiting reply...");
+    
+                let mut data = [0 as u8; 6]; // using 6 byte buffer
+                match stream.read_exact(&mut data) {
+                    Ok(_) => {
+                        if &data == msg {
+                            println!("Reply is ok!");
+                        } else {
+                            let text = from_utf8(&data).unwrap();
+                            println!("Unexpected reply: {}", text);
+                        }
+                    },
+                    Err(e) => {
+                        println!("Failed to receive data: {}", e);
+                    }
+                }
+            },
+            Err(e) => {
+                println!("Failed to connect: {}", e);
+            }
+        }
+    }
+
     pub fn new(player_name: String, mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
+
+        // if hosting
+        std::thread::spawn(move || {
+            let gameserver = GameServer::new();
+            gameserver.host()
+        });
+
+        //std::thread::sleep(std::time::Duration::from_millis(1000));
+        GameState::connect_client();
+
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
@@ -513,32 +587,21 @@ impl event::EventHandler for GameState {
 
     /// draw is where we should actually render the game's current state.
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        // First we clear the screen to a nice (well, maybe pretty glaring ;)) green
         graphics::clear(ctx, [0.0, 0.5, 0.0, 1.0].into());
-        //let time = (timer::duration_to_f64(timer::time_since_start(ctx)) * 1000.0) as u32;
-        //let cycle = 10_000;
         let param = graphics::DrawParam::new()
         .dest(Vec2::new(0.0, 0.0));
-        //    ((time % cycle) as f32 / cycle as f32 * 6.28).cos() * 50.0 - 150.0,
-        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin() * 50.0 - 150.0,
-        //))
-        //.scale(Vec2::new(0.0, 0.0));
-        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin().abs() * 2.0 + 1.0,
-        //    ((time % cycle) as f32 / cycle as f32 * 6.28).sin().abs() * 2.0 + 1.0,
-        //))
-        //.rotation((time % cycle) as f32 / cycle as f32 * 6.28)
-        //.offset(Vec2::new(150.0, 150.0));
         graphics::draw(ctx, self.textures.get("background").unwrap(), param)?;
-        // Then we tell the player and the food to draw themselves
+
+        // <TODO Load Map> //
+
+        // Then we tell the player and the items to draw themselves
         self.player.draw(ctx)?;
         self.food.draw(ctx)?;
         self.hud.draw(ctx, &self.player)?;
-        // Finally we call graphics::present to cycle the gpu's framebuffer and display
-        // the new frame we just drew.
+
+
         graphics::present(ctx)?;
-        // We yield the current thread until the next update
         ggez::timer::yield_now();
-        // And return success.
         Ok(())
     }
 
@@ -598,17 +661,11 @@ fn main() -> GameResult {
         path::PathBuf::from("./textures")
     };
 
-    // Here we use a ContextBuilder to setup metadata about our game. First the title and author
     let (mut ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
-        // Next we set up the window. This title will be displayed in the title bar of the window.
         .window_setup(ggez::conf::WindowSetup::default().title("Item Wars!"))
-        // Now we get to set the size of the window, which we use our SCREEN_SIZE constant from earlier to help with
         .window_mode(ggez::conf::WindowMode::default().dimensions(SCREEN_SIZE.0, SCREEN_SIZE.1))
-        // And finally we attempt to build the context and create the window. If it fails, we panic with the message
-        // "Failed to build ggez context"
         .add_resource_path(resource_dir)
         .build()?;
-
     // To enable fullscreen
     //graphics::set_fullscreen(&mut ctx, ggez::conf::FullscreenType::True).unwrap();
 
