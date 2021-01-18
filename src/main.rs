@@ -76,42 +76,39 @@ struct Direction {
 
 /// This is again an abstraction over a `GridPosition` that represents
 /// a piece of food the player can eat. It can draw itself.
-struct Food {
+struct Potion {
     pos: Position,
+    texture: ImageGeneric<GlBackendSpec>,
 }
 
-impl Food {
-    pub fn new(pos: Position) -> Self {
-        Food { pos }
+impl Potion {
+    pub fn new(pos: Position, texture: ImageGeneric<GlBackendSpec>) -> Self {
+        Potion {
+            pos,
+            texture
+        }
     }
 
-    /// Here is the first time we see what drawing looks like with ggez.
-    /// We have a function that takes in a `&mut ggez::Context` which we use
-    /// with the helpers in `ggez::graphics` to do drawing. We also return a
-    /// `ggez::GameResult` so that we can use the `?` operator to bubble up
-    /// failure of drawing.
-    ///
-    /// Note: this method of drawing does not scale. If you need to render
-    /// a large number of shapes, use a SpriteBatch. This approach is fine for
-    /// this example since there are a fairly limited number of calls.
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
-        // First we set the color to draw with, in this case all food will be
-        // colored blue.
-        let color = [0.0, 0.0, 1.0, 1.0].into();
-        // Then we draw a rectangle with the Fill draw mode, and we convert the
-        // Food's position into a `ggez::Rect` using `.into()` which we can do
-        // since we implemented `From<GridPosition>` for `Rect` earlier.
-        let rectangle =
-            graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), self.pos.into(), color)?;
-        graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
+        //let color = [0.0, 0.0, 1.0, 1.0].into();
+        //let rectangle =
+        //    graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), self.pos.into(), color)?;
+        //graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
+        let param = graphics::DrawParam::new()
+        .src(graphics::Rect {x: 0.0, y: 0.0, w: 0.33, h: 0.33})
+        .dest(Vec2::new(self.pos.x, self.pos.y))
+        //.offset(Vec2::new(0.15, 0.0))
+        .scale(Vec2::new(0.25, 0.25));
+        //.rotation((time % cycle) as f32 / cycle as f32 * 6.28)
+        //.offset(Vec2::new(150.0, 150.0));
+        graphics::draw(ctx, &self.texture, param)?;
+        Ok(())
     }
 }
 
-/// Here we define an enum of the possible things that the player could have "eaten"
-/// during an update of the game. It could have either eaten a piece of `Food`
 #[derive(Clone, Copy, Debug)]
 enum Ate {
-    Food,
+    Potion,
 }
 
 /// Now we make a struct that contains all the information needed to describe the
@@ -123,9 +120,6 @@ struct Player {
     /// the direction it will move when `update` is called on it.
     dir: Direction,
     last_dir: Direction,
-    /// Now we have a property that represents the result of the last update
-    /// that was performed. The player could have eaten nothing (None), Food (Some(Ate::Food)),
-    /// or Itself (Some(Ate::Itself))
     ate: Option<Ate>,
     /// Store the direction that will be used in the `update` after the next `update`
     /// This is needed so a user can press two directions (eg. left then up)
@@ -166,7 +160,7 @@ impl Player {
         }
     }
 
-    fn eats(&self, food: &Food) -> bool {
+    fn eats(&self, food: &Potion) -> bool {
         if self.body == food.pos {
             true
         } else {
@@ -224,14 +218,14 @@ impl Player {
 
     /// The main update function for our player which gets called every time
     /// we want to update the game state.
-    fn update(&mut self, food: &Food) {
+    fn update(&mut self, food: &Potion) {
         if self.moving {
             self.move_direction()
         } else if self.current_accel > 0.0 {
             self.move_direction_cooldown()
         }
         if self.eats(food) {
-            self.ate = Some(Ate::Food);
+            self.ate = Some(Ate::Potion);
         } else {
             self.ate = None
         }
@@ -260,20 +254,14 @@ impl Player {
         }
     }
 
-    /// Here we have the Player draw itself. This is very similar to how we saw the Food
-    /// draw itself earlier.
-    ///
-    /// Again, note that this approach to drawing is fine for the limited scope of this
-    /// example, but larger scale games will likely need a more optimized render path
-    /// using SpriteBatch or something similar that batches draw calls.
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         // And then we do the same for the head, instead making it fully red to distinguish it.
-        let rectangle = graphics::Mesh::new_rectangle(
-            ctx,
-            graphics::DrawMode::fill(),
-            self.body.into(),
-            [1.0, 0.5, 0.0, 1.0].into(),
-        )?;
+        //let rectangle = graphics::Mesh::new_rectangle(
+        //    ctx,
+        //    graphics::DrawMode::fill(),
+        //    self.body.into(),
+        //    [1.0, 0.5, 0.0, 1.0].into(),
+        //)?;
         //graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
 
         let rectangle = graphics::Mesh::new_rectangle(
@@ -424,7 +412,7 @@ struct GameState {
     /// First we need a Player
     player: Player,
     /// A piece of food
-    food: Food,
+    food: Potion,
     /// Whether the game is over or not
     gameover: bool,
     /// And we track the last time we updated so that we can limit
@@ -440,12 +428,13 @@ impl GameState {
         let player_pos = Position { x: 100.0, y: 100.0 };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
                                   y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
+        let potion_texture = textures.remove("potion").unwrap();
         let player_texture = textures.remove("hero").unwrap();
         let player = Player::new(player_name, player_pos, player_texture);
 
         GameState {
             player: player,
-            food: Food::new(food_pos),
+            food: Potion::new(food_pos, potion_texture),
             hud: Hud::new(),
             gameover: false,
             last_update: Instant::now(),
@@ -474,7 +463,7 @@ impl event::EventHandler for GameState {
                     match ate {
                         // If it ate a piece of food, we randomly select a new position for our piece of food
                         // and move it to this new position.
-                        Ate::Food => {
+                        Ate::Potion => {
                             let mut rng = rand::thread_rng();
                             self.food.pos = Position { x: rng.gen_range(0, (SCREEN_SIZE.0 - GRID_CELL_SIZE) as i16) as f32,
                                                        y: rng.gen_range(0, (SCREEN_SIZE.1 - GRID_CELL_SIZE) as i16) as f32 }
@@ -595,6 +584,7 @@ fn main() -> GameResult {
     let mut textures: HashMap<String, ImageGeneric<GlBackendSpec>> = HashMap::new();
     textures.insert("background".to_string(), graphics::Image::new(&mut ctx, "/tile.png").unwrap());
     textures.insert("hero".to_string(), graphics::Image::new(&mut ctx, "/hero.png").unwrap());
+    textures.insert("potion".to_string(), graphics::Image::new(&mut ctx, "/potion.png").unwrap());
 
     // Next we create a new instance of our GameState struct, which implements EventHandler
     let state = GameState::new(input, textures);
