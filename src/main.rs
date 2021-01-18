@@ -475,10 +475,11 @@ impl GameServer {
     }
 
     fn handle_connection(&self, mut stream: TcpStream) {
-        let mut buffer = [0; 1024];
+        let mut buffer = [0; 65000];
     
         stream.read(&mut buffer).unwrap();
-    
+        stream.write("got it!".to_string().as_bytes());
+
         println!("Request: {}", String::from_utf8_lossy(&buffer[..]));
     }
 }
@@ -499,20 +500,21 @@ struct GameState {
 
 impl GameState {
 
-    fn connect_client() {
+    fn connect_client(player: String) {
         match TcpStream::connect("localhost:7878") {
             Ok(mut stream) => {
                 println!("Successfully connected to server in port 7878");
     
-                let msg = b"Hello!";
+                let msg = format!("Hello {}!", player);
     
-                stream.write(msg).unwrap();
+                stream.write(msg.as_bytes()).unwrap();
                 println!("Sent Hello, awaiting reply...");
     
-                let mut data = [0 as u8; 6]; // using 6 byte buffer
-                match stream.read_exact(&mut data) {
+                let mut data = [0 as u8; 7]; 
+                match stream.read(&mut data) {
                     Ok(_) => {
-                        if &data == msg {
+                        println!("{:?} {:?}", &data, "got it!".as_bytes());
+                        if &data == "got it!".as_bytes() {
                             println!("Reply is ok!");
                         } else {
                             let text = from_utf8(&data).unwrap();
@@ -532,14 +534,8 @@ impl GameState {
 
     pub fn new(player_name: String, mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
-        // if hosting
-        std::thread::spawn(move || {
-            let gameserver = GameServer::new();
-            gameserver.host()
-        });
-
         //std::thread::sleep(std::time::Duration::from_millis(1000));
-        GameState::connect_client();
+        GameState::connect_client(player_name.clone());
 
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
@@ -547,7 +543,7 @@ impl GameState {
                                   y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
         let potion_texture = textures.remove("potion").unwrap();
         let player_texture = textures.remove("hero").unwrap();
-        let player = Player::new(player_name, player_pos, player_texture);
+        let player = Player::new(player_name.clone(), player_pos, player_texture);
 
         GameState {
             player: player,
@@ -651,42 +647,52 @@ impl event::EventHandler for GameState {
 }
 
 fn main() -> GameResult {
-    let mut input = String::new();
-    //let mut size = 0;
-    //while size <= 0 || size > 9 {
-    //    input = "".to_string();
-    //    println!("Enter Player Name (Limit 8 chars): ");
-    //    size = match io::stdin().read_line(&mut input) {
-    //        Ok(n) => n,
-    //        Err(error) => panic!("error: {}", error),
-    //    };
-    //}
-    input = "Fred".to_string();
 
-    let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-        let mut path = path::PathBuf::from(manifest_dir);
-        path.push("textures");
-        path
+    let args: Vec<String> = env::args().collect();
+
+    // if hosting
+    if args.len() > 1 && args[1].to_ascii_lowercase() == "--server" {
+        let gameserver = GameServer::new();
+        gameserver.host();
+        Ok(())
     } else {
-        path::PathBuf::from("./textures")
-    };
+        let mut input = String::new();
+        //let mut size = 0;
+        //while size <= 0 || size > 9 {
+        //    input = "".to_string();
+        //    println!("Enter Player Name (Limit 8 chars): ");
+        //    size = match io::stdin().read_line(&mut input) {
+        //        Ok(n) => n,
+        //        Err(error) => panic!("error: {}", error),
+        //    };
+        //}
+        input = "Fred".to_string();
 
-    let (mut ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
-        .window_setup(ggez::conf::WindowSetup::default().title("Item Wars!"))
-        .window_mode(ggez::conf::WindowMode::default().dimensions(SCREEN_SIZE.0, SCREEN_SIZE.1))
-        .add_resource_path(resource_dir)
-        .build()?;
-    // To enable fullscreen
-    //graphics::set_fullscreen(&mut ctx, ggez::conf::FullscreenType::True).unwrap();
+        let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+            let mut path = path::PathBuf::from(manifest_dir);
+            path.push("textures");
+            path
+        } else {
+            path::PathBuf::from("./textures")
+        };
 
-    // Load our textures
-    let mut textures: HashMap<String, ImageGeneric<GlBackendSpec>> = HashMap::new();
-    textures.insert("background".to_string(), graphics::Image::new(&mut ctx, "/tile.png").unwrap());
-    textures.insert("hero".to_string(), graphics::Image::new(&mut ctx, "/hero.png").unwrap());
-    textures.insert("potion".to_string(), graphics::Image::new(&mut ctx, "/potion.png").unwrap());
+        let (mut ctx, events_loop) = ggez::ContextBuilder::new("iterm wars", "Mitt Miles")
+            .window_setup(ggez::conf::WindowSetup::default().title("Item Wars!"))
+            .window_mode(ggez::conf::WindowMode::default().dimensions(SCREEN_SIZE.0, SCREEN_SIZE.1))
+            .add_resource_path(resource_dir)
+            .build()?;
+        // To enable fullscreen
+        //graphics::set_fullscreen(&mut ctx, ggez::conf::FullscreenType::True).unwrap();
 
-    // Next we create a new instance of our GameState struct, which implements EventHandler
-    let state = GameState::new(input, textures);
-    // And finally we actually run our game, passing in our context and state.
-    event::run(ctx, events_loop, state)
+        // Load our textures
+        let mut textures: HashMap<String, ImageGeneric<GlBackendSpec>> = HashMap::new();
+        textures.insert("background".to_string(), graphics::Image::new(&mut ctx, "/tile.png").unwrap());
+        textures.insert("hero".to_string(), graphics::Image::new(&mut ctx, "/hero.png").unwrap());
+        textures.insert("potion".to_string(), graphics::Image::new(&mut ctx, "/potion.png").unwrap());
+
+        // Next we create a new instance of our GameState struct, which implements EventHandler
+        let state = GameState::new(input, textures);
+        // And finally we actually run our game, passing in our context and state.
+        event::run(ctx, events_loop, state)
+    }
 }
