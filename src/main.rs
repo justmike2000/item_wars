@@ -652,8 +652,28 @@ fn main() -> GameResult {
 
     // if hosting
     if args.len() > 1 && args[1].to_ascii_lowercase() == "--server" {
-        let gameserver = GameServer::new();
-        gameserver.host();
+        std::thread::spawn(move || {
+            let gameserver = GameServer::new();
+            gameserver.host();
+        });
+        let mut server_input = String::new();
+        let mut size = 0;
+        println!("Started Item Wars Server on 7878");
+        while true {
+            server_input = "".to_string();
+            //print!("\nITEM WARS ENTER COMMAND :> ");
+            io::stdin().read_line(&mut server_input);
+            server_input.retain(|c| !c.is_whitespace());
+            match server_input.to_ascii_lowercase().as_str() {
+                "" => {
+                },
+                "exit" => {
+                    panic!("Exit!");
+                },
+                _ => {},
+                _ => {},
+            }
+        }
         Ok(())
     } else {
         let mut input = String::new();
