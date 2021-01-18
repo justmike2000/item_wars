@@ -129,7 +129,6 @@ struct Player {
     hp: i64,
     mp: i64,
     str: i64,
-    moving: bool,
     current_accel: f32,
     texture: ImageGeneric<GlBackendSpec>,
     animation_frame: f32,
@@ -148,7 +147,6 @@ impl Player {
             dir: Direction::default(),
             last_dir: Direction::default(),
             ate: None,
-            moving: false,
             current_accel: PLAYER_STARTING_ACCEL,
             hp: PLAYER_MAX_HP,
             mp: PLAYER_MAX_MP,
@@ -217,10 +215,14 @@ impl Player {
             }
     }
 
+    fn is_moving(&self) -> bool {
+        self.dir.up || self.dir.down || self.dir.left || self.dir.right
+    }
+
     /// The main update function for our player which gets called every time
     /// we want to update the game state.
     fn update(&mut self, food: &Potion) {
-        if self.moving {
+        if self.is_moving() {
             self.move_direction()
         } else if self.current_accel > PLAYER_STARTING_ACCEL {
             self.move_direction_cooldown()
@@ -246,7 +248,7 @@ impl Player {
 
     fn animate_frames(&mut self) {
         // Animation movement
-        if self.moving && self.last_animation.elapsed() > self.animation_duration {
+        if self.is_moving() && self.last_animation.elapsed() > self.animation_duration {
             self.last_animation = Instant::now();
             self.animation_frame += 1.0 / self.animation_total_frames;
             if self.animation_frame >= 1.0 {
@@ -524,7 +526,6 @@ impl event::EventHandler for GameState {
             KeyCode::Escape => panic!("Escape!"),
             _ => ()
         };
-        self.player.moving = false;
     }
 
     /// key_down_event gets fired when a key gets pressed.
@@ -542,7 +543,6 @@ impl event::EventHandler for GameState {
             KeyCode::S => self.player.dir.down = true,
             _ => ()
         };
-        self.player.moving = true;
     }
 }
 
