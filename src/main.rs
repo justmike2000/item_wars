@@ -25,6 +25,7 @@ const PLAYER_MAX_STR: i64 = 10;
 const PLAYER_MOVE_SPEED: f32 = 3.0;
 const PLAYER_TOP_ACCEL_SPEED: f32 = 5.0;
 const PLAYER_ACCEL_SPEED: f32 = 0.2;
+const PLAYER_STARTING_ACCEL: f32 = 0.4;
 
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
@@ -148,7 +149,7 @@ impl Player {
             last_dir: Direction::default(),
             ate: None,
             moving: false,
-            current_accel: 0.0,
+            current_accel: PLAYER_STARTING_ACCEL,
             hp: PLAYER_MAX_HP,
             mp: PLAYER_MAX_MP,
             str: PLAYER_MAX_STR,
@@ -212,7 +213,7 @@ impl Player {
                 self.body.x += PLAYER_MOVE_SPEED + self.current_accel;
             }
             if self.current_accel > 0.0 {
-                self.current_accel -= (PLAYER_ACCEL_SPEED * MAP_CURRENT_FRICTION);
+                self.current_accel -= PLAYER_ACCEL_SPEED * MAP_CURRENT_FRICTION;
             }
     }
 
@@ -221,7 +222,7 @@ impl Player {
     fn update(&mut self, food: &Potion) {
         if self.moving {
             self.move_direction()
-        } else if self.current_accel > 0.0 {
+        } else if self.current_accel > PLAYER_STARTING_ACCEL {
             self.move_direction_cooldown()
         }
         if self.eats(food) {
