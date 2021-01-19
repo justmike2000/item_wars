@@ -37,6 +37,9 @@ const PLAYER_JUMP_HEIGHT: f32 = 0.5;
 const PLAYER_CELL_HEIGHT: f32 = 42.0;
 const PLAYER_CELL_WIDTH: f32 = 32.0;
 
+const POTION_WIDTH: f32 = 166.66;
+const POTION_HEIGHT: f32 = 166.66;
+
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const PACKET_SIZE: usize = 65_000;
@@ -56,29 +59,6 @@ impl From<Position> for Rect {
     }
 }
 
-/// This is a trait that provides a modulus function that works for negative values
-/// rather than just the standard remainder op (%) which does not. We'll use this
-/// to get our player to wrap from one side of the game board around to the other
-/// when it goes off the top, bottom, left, or right side of the screen.
-trait ModuloSigned {
-    fn modulo(&self, n: Self) -> Self;
-}
-
-/// Here we implement our `ModuloSigned` trait for any type T which implements
-/// `Add` (the `+` operator) with an output type T and Rem (the `%` operator)
-/// that also has an output type of T, and that can be cloned. These are the bounds
-/// that we need in order to implement a modulus function that works for negative numbers
-/// as well.
-impl<T> ModuloSigned for T
-where
-    T: std::ops::Add<Output = T> + std::ops::Rem<Output = T> + Clone,
-{
-    fn modulo(&self, n: T) -> T {
-        // Because of our trait bounds, we can now apply these operators.
-        (self.clone() % n.clone() + n.clone()) % n.clone()
-    }
-}
-
 #[derive(Default, Debug)]
 struct Direction {
     up: bool,
@@ -87,14 +67,22 @@ struct Direction {
     right: bool,
 }
 
-/// This is again an abstraction over a `GridPosition` that represents
-/// a piece of food the player can eat. It can draw itself.
+#[derive(Debug)]
 struct Potion {
     pos: Position,
     texture: ImageGeneric<GlBackendSpec>,
 }
 
 impl Potion {
+
+    fn get_width(&self) -> f32 {
+        POTION_WIDTH
+    }
+
+    fn get_height(&self) -> f32 {
+        POTION_HEIGHT
+    }
+
     pub fn new(pos: Position, texture: ImageGeneric<GlBackendSpec>) -> Self {
         Potion {
             pos,
@@ -175,8 +163,12 @@ impl Player {
         }
     }
 
-    fn eats(&self, food: &Potion) -> bool {
-        if self.body == food.pos {
+    fn eats(&self, potion: &Potion) -> bool {
+        let player_rect = Rect::new(self.body.x, self.body.y, PLAYER_CELL_WIDTH, PLAYER_JUMP_HEIGHT);
+        let potion_rect = Rect::new(potion.pos.x, potion.pos.y, POTION_WIDTH, POTION_HEIGHT);
+        println!("{:?}, {:?}", player_rect, potion_rect);
+
+        if player_rect == potion_rect {
             true
         } else {
             false
