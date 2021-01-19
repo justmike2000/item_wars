@@ -38,6 +38,8 @@ const PLAYER_CELL_WIDTH: f32 = 32.0;
 
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
+const PACKET_SIZE: usize = 65_000;
+
 const UPDATES_PER_SECOND: f32 = 30.0;
 const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 
@@ -493,7 +495,7 @@ impl GameServer {
     }
 
     fn handle_connection(&mut self, mut stream: TcpStream) {
-        let mut buffer = [0; 65000];
+        let mut buffer = [0; PACKET_SIZE];
     
         stream.read(&mut buffer).unwrap();
         let request = String::from_utf8_lossy(&buffer[..]);
@@ -521,7 +523,7 @@ impl GameServer {
                 stream.write(msg.as_bytes()).unwrap();
                 println!("Sent {} awaiting reply...", msg);
     
-                let mut data = [0 as u8; 65000]; 
+                let mut data = [0 as u8; PACKET_SIZE]; 
                 match stream.read(&mut data) {
                     Ok(_) => {
                         if &data[0..7] == "got it!".as_bytes() {
