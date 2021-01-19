@@ -17,6 +17,7 @@ use std::net::TcpStream;
 use std::io::{Read, Write};
 use std::str::from_utf8;
 
+use clap::{Arg, App};
 use rand::Rng;
 use uuid::Uuid;
 
@@ -474,19 +475,21 @@ impl NetworkedGame {
 }
 
 pub struct GameServer {
+    hostname: String,
     games: Vec<NetworkedGame>
 }
 
 impl GameServer {
 
-    fn new() -> GameServer {
+    fn new(hostname: String) -> GameServer {
         GameServer {
+            hostname,
             games: vec![],
         }
     }
 
     fn host(&mut self) {
-        let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+        let listener = TcpListener::bind(self.hostname.as_str()).unwrap();
 
         for stream in listener.incoming() {
             let stream = stream.unwrap();
@@ -513,10 +516,10 @@ impl GameServer {
         }
     }
 
-    fn send_message(msg: String) {
-        match TcpStream::connect("localhost:7878") {
+    fn send_message(host: String, msg: String) {
+        match TcpStream::connect(host.clone()) {
             Ok(mut stream) => {
-                println!("Successfully connected to server in port 7878");
+                println!("Successfully connected to server {}", host);
     
                 let msg = format!("{}", msg);
     
@@ -571,15 +574,15 @@ struct GameState {
 
 impl GameState {
 
-    fn connect_client(player: String) {
+    fn connect_client(server: String, player: String) {
         let msg = format!("Hello server, it's {}!", player);
-        GameServer::send_message(msg);
+        GameServer::send_message(server, msg);
     }
 
     pub fn new(player_name: String, mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
         //std::thread::sleep(std::time::Duration::from_millis(1000));
-        GameState::connect_client(player_name.clone());
+        GameState::connect_client("localhost:7878".to_string(), player_name.clone());
 
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
@@ -692,16 +695,20 @@ impl event::EventHandler for GameState {
 
 fn main() -> GameResult {
 
-    let args: Vec<String> = env::args().collect();
+    let matches = App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .arg("-s --server=[HOSTNAME:PORT] 'Set as server and assign hostname:port'")
+        .get_matches();
 
     // if hosting
-    if args.len() > 1 && args[1].to_ascii_lowercase() == "--server" {
+    if let Some(server) = matches.clone().value_of("server") {
+        let safe_server = server.clone().to_string();
         std::thread::spawn(move || {
-            let mut gameserver = GameServer::new();
+            let mut gameserver = GameServer::new(safe_server);
             gameserver.host();
         });
         let mut server_input = String::new();
-        println!("Started Item Wars Server on 7878");
+        println!("Started Item Wars Server on {}", server);
         let mut current_games: Vec<NetworkedGame> = vec![];
         loop {
             server_input = "".to_string();
@@ -710,10 +717,10 @@ fn main() -> GameResult {
             server_input.retain(|c| !c.is_whitespace());
             match server_input.to_ascii_lowercase().as_str() {
                 "newgame" => {
-                    GameServer::send_message("newgame".to_string());
+                    GameServer::send_message(server.clone().to_string(), "newgame".to_string());
                 },
                 "listgames" => {
-                    GameServer::send_message("listgames".to_string());
+                    GameServer::send_message(server.clone().to_string(), "listgames".to_string());
                 },
                 "exit" => {
                     panic!("Exit!");
@@ -723,17 +730,7 @@ fn main() -> GameResult {
         }
         Ok(())
     } else {
-        let mut input = String::new();
-        //let mut size = 0;
-        //while size <= 0 || size > 9 {
-        //    input = "".to_string();
-        //    println!("Enter Player Name (Limit 8 chars): ");
-        //    size = match io::stdin().read_line(&mut input) {
-        //        Ok(n) => n,
-        //        Err(error) => panic!("error: {}", error),
-        //    };
-        //}
-        input = "Fred".to_string();
+        let input = "Fred".to_string();
 
         let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
             let mut path = path::PathBuf::from(manifest_dir);
