@@ -588,10 +588,10 @@ impl GameState {
         GameServer::send_message(server, msg);
     }
 
-    pub fn new(player_name: String, mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
+    pub fn new(player_name: String, host: String, mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
         //std::thread::sleep(std::time::Duration::from_millis(1000));
-        GameState::connect_client("localhost:7878".to_string(), player_name.clone());
+        GameState::connect_client(host, player_name.clone());
 
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
@@ -708,6 +708,8 @@ fn main() -> GameResult {
         .version(env!("CARGO_PKG_VERSION"))
         .arg("-s --server=[HOSTNAME:PORT] 'Set as server and assign hostname:port'")
         .arg("-l --list=[HOSTNAME:PORT] 'List all games on server'")
+        .arg("-p --player=[NAME] 'Player Name'")
+        .arg("-h --host=[HOSTNAME:PORT] ''")
         .get_matches();
 
     // if hosting
@@ -737,7 +739,8 @@ fn main() -> GameResult {
        GameServer::send_message(list.clone().to_string(), "listgames".to_string());
        Ok(())
     } else {
-        let input = "Fred".to_string();
+        let player_name = matches.clone().value_of("player").unwrap_or("Player").to_string();
+        let host = matches.clone().value_of("host").unwrap_or("localhost:7878").to_string();
 
         let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
             let mut path = path::PathBuf::from(manifest_dir);
@@ -762,7 +765,7 @@ fn main() -> GameResult {
         textures.insert("potion".to_string(), graphics::Image::new(&mut ctx, "/potion.png").unwrap());
 
         // Next we create a new instance of our GameState struct, which implements EventHandler
-        let state = GameState::new(input, textures);
+        let state = GameState::new(player_name, host, textures);
         // And finally we actually run our game, passing in our context and state.
         event::run(ctx, events_loop, state)
     }
