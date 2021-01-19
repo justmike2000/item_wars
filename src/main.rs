@@ -698,6 +698,7 @@ fn main() -> GameResult {
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg("-s --server=[HOSTNAME:PORT] 'Set as server and assign hostname:port'")
+        .arg("-l --list=[HOSTNAME:PORT] 'List all games on server'")
         .get_matches();
 
     // if hosting
@@ -729,6 +730,9 @@ fn main() -> GameResult {
             }
         }
         Ok(())
+    } else if let Some(list) = matches.clone().value_of("list") {
+       GameServer::send_message(list.clone().to_string(), "listgames".to_string());
+       Ok(())
     } else {
         let input = "Fred".to_string();
 
