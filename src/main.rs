@@ -517,6 +517,11 @@ impl GameServer {
                 let response = format!("game_info:  {:?}", game);
                 let _ = stream.write(response.as_bytes());
             }
+        } else if &request.to_string().as_str()[0..9] == "connected" {
+            let request = &request.to_string().as_str()[0..9].to_string();
+            println!("REQUEST: {}", request);
+            //let games = format!("Games: {:?}", self.games);
+            //let _ = stream.write(games.as_bytes());
         } else {
             let _ = stream.write("Invalid Command".to_string().as_bytes());
         }
@@ -568,14 +573,9 @@ impl GameServer {
 }
 
 struct GameState {
-    /// First we need a Player
     player: Player,
-    /// A piece of food
     food: Potion,
-    /// Whether the game is over or not
     gameover: bool,
-    /// And we track the last time we updated so that we can limit
-    /// our update rate.
     last_update: Instant,
     hud: Hud,
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>
@@ -583,15 +583,15 @@ struct GameState {
 
 impl GameState {
 
-    fn connect_client(server: String, player: String) {
-        let msg = format!("Hello server, it's {}!", player);
+    fn connect_client(server: String, player: String, game_id: String) {
+        let msg = format!("connected: {} {}", player, game_id);
         GameServer::send_message(server, msg);
     }
 
-    pub fn new(player_name: String, host: String, mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
+    pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
         //std::thread::sleep(std::time::Duration::from_millis(1000));
-        GameState::connect_client(host, player_name.clone());
+        GameState::connect_client(host, player_name.clone(), game_id);
 
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0 };
@@ -612,26 +612,13 @@ impl GameState {
     }
 }
 
-/// Now we implement EventHandler for GameState. This provides an interface
-/// that ggez will call automatically when different events happen.
 impl event::EventHandler for GameState {
-    /// Update will happen on every frame before it is drawn. This is where we update
-    /// our game state to react to whatever is happening in the game world.
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        // First we check to see if enough time has elapsed since our last update based on
-        // the update rate we defined at the top.
         if Instant::now() - self.last_update >= Duration::from_millis(MILLIS_PER_UPDATE) {
-            // Then we check to see if the game is over. If not, we'll update. If so, we'll just do nothing.
             if !self.gameover {
-                // Here we do the actual updating of our game world. First we tell the player to update itself,
-                // passing in a reference to our piece of food.
                 self.player.update(&self.food);
-                // Next we check if the player ate anything as it updated.
                 if let Some(ate) = self.player.ate {
-                    // If it did, we want to know what it ate.
                     match ate {
-                        // If it ate a piece of food, we randomly select a new position for our piece of food
-                        // and move it to this new position.
                         Ate::Potion => {
                             let mut rng = rand::thread_rng();
                             self.food.pos = Position { x: rng.gen_range(0, (SCREEN_SIZE.0 - GRID_CELL_SIZE) as i16) as f32,
@@ -640,14 +627,11 @@ impl event::EventHandler for GameState {
                     }
                 }
             }
-            // If we updated, we set our last_update to be now
             self.last_update = Instant::now();
         }
-        // Finally we return `Ok` to indicate we didn't run into any errors
         Ok(())
     }
 
-    /// draw is where we should actually render the game's current state.
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         graphics::clear(ctx, [0.0, 0.5, 0.0, 1.0].into());
         let param = graphics::DrawParam::new()
@@ -706,14 +690,15 @@ fn main() -> GameResult {
 
     let matches = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
-        .arg("-s --server=[HOSTNAME:PORT] 'Set as server and assign hostname:port'")
+        .arg("-h --host=[HOSTNAME:PORT] 'Set as server and assign hostname:port'")
         .arg("-l --list=[HOSTNAME:PORT] 'List all games on server'")
         .arg("-p --player=[NAME] 'Player Name'")
-        .arg("-h --host=[HOSTNAME:PORT] ''")
+        .arg("-s --server=[HOSTNAME:PORT] 'Host to connect to'")
+        .arg("-g --game=[GAMEID] 'GameID to join'")
         .get_matches();
 
     // if hosting
-    if let Some(server) = matches.clone().value_of("server") {
+    if let Some(server) = matches.clone().value_of("host") {
         let safe_server = server.clone().to_string();
         std::thread::spawn(move || {
             let mut gameserver = GameServer::new(safe_server);
@@ -740,7 +725,13 @@ fn main() -> GameResult {
        Ok(())
     } else {
         let player_name = matches.clone().value_of("player").unwrap_or("Player").to_string();
-        let host = matches.clone().value_of("host").unwrap_or("localhost:7878").to_string();
+        let host = matches.clone().value_of("server").unwrap_or("localhost:7878").to_string();
+        let game_id = match matches.clone().value_of("game") {
+            Some(g ) => g.to_string(),
+            None => {
+                panic!("Please provide gameid.")
+            },
+        };
 
         let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
             let mut path = path::PathBuf::from(manifest_dir);
@@ -765,7 +756,7 @@ fn main() -> GameResult {
         textures.insert("potion".to_string(), graphics::Image::new(&mut ctx, "/potion.png").unwrap());
 
         // Next we create a new instance of our GameState struct, which implements EventHandler
-        let state = GameState::new(player_name, host, textures);
+        let state = GameState::new(player_name, host, game_id, textures);
         // And finally we actually run our game, passing in our context and state.
         event::run(ctx, events_loop, state)
     }
