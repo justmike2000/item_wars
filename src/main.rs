@@ -472,16 +472,18 @@ impl NetworkedGame {
 }
 
 pub struct GameServer {
+    games: Vec<NetworkedGame>
 }
 
 impl GameServer {
 
     fn new() -> GameServer {
         GameServer {
+            games: vec![],
         }
     }
 
-    fn host(&self) {
+    fn host(&mut self) {
         let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
         for stream in listener.incoming() {
@@ -490,13 +492,22 @@ impl GameServer {
         }
     }
 
-    fn handle_connection(&self, mut stream: TcpStream) {
+    fn handle_connection(&mut self, mut stream: TcpStream) {
         let mut buffer = [0; 65000];
     
         stream.read(&mut buffer).unwrap();
-        let _ = stream.write("got it!".to_string().as_bytes());
+        let request = String::from_utf8_lossy(&buffer[..]);
+        println!("Received request: {}", request.to_string().as_str());
 
-        println!("Request: {}", String::from_utf8_lossy(&buffer[..]));
+        if &request.to_string().as_str()[0..7] == "newgame" {
+            let game = NetworkedGame::new();
+            let _ = stream.write(format!("game_id: {}", game.session_id).as_bytes());
+            self.games.push(game);
+
+        } else {
+            let _ = stream.write("got it!".to_string().as_bytes());
+
+        }
     }
 
     fn send_message(msg: String) {
@@ -509,11 +520,14 @@ impl GameServer {
                 stream.write(msg.as_bytes()).unwrap();
                 println!("Sent {} awaiting reply...", msg);
     
-                let mut data = [0 as u8; 7]; 
+                let mut data = [0 as u8; 65000]; 
                 match stream.read(&mut data) {
                     Ok(_) => {
-                        if &data == "got it!".as_bytes() {
-                            println!("Reply is ok!");
+                        if &data[0..7] == "got it!".as_bytes() {
+                            println!("Reply is {:?}", std::str::from_utf8(&data).unwrap());
+                        } else if &data[0..7] == "game_id".as_bytes() {
+                            let text = from_utf8(&data).unwrap();
+                            println!("New game created: {}", text);
                         } else {
                             let text = from_utf8(&data).unwrap();
                             println!("Unexpected reply: {}", text);
@@ -677,7 +691,7 @@ fn main() -> GameResult {
     // if hosting
     if args.len() > 1 && args[1].to_ascii_lowercase() == "--server" {
         std::thread::spawn(move || {
-            let gameserver = GameServer::new();
+            let mut gameserver = GameServer::new();
             gameserver.host();
         });
         let mut server_input = String::new();
@@ -690,9 +704,10 @@ fn main() -> GameResult {
             server_input.retain(|c| !c.is_whitespace());
             match server_input.to_ascii_lowercase().as_str() {
                 "newgame" => {
-                    let game = GameServer::new_game();
-                    current_games.push(game);
-                    println!("Current Games: {:?}", current_games);
+                    GameServer::send_message("newgame".to_string());
+                    //let game = GameServer::new_game();
+                    //current_games.push(game);
+                    //println!("Current Games: {:?}", current_games);
                 },
                 "listgames" => {
                     println!("Current Games: {:?}", current_games);
