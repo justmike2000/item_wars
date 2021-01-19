@@ -503,10 +503,11 @@ impl GameServer {
             let game = NetworkedGame::new();
             let _ = stream.write(format!("game_id: {}", game.session_id).as_bytes());
             self.games.push(game);
-
+        } else if &request.to_string().as_str()[0..9] == "listgames" {
+            let games = format!("Games: {:?}", self.games);
+            let _ = stream.write(games.as_bytes());
         } else {
             let _ = stream.write("got it!".to_string().as_bytes());
-
         }
     }
 
@@ -528,6 +529,9 @@ impl GameServer {
                         } else if &data[0..7] == "game_id".as_bytes() {
                             let text = from_utf8(&data).unwrap();
                             println!("New game created: {}", text);
+                        } else if &data[0..5] == "Games".as_bytes() {
+                            let text = from_utf8(&data).unwrap();
+                            println!("{}", text);
                         } else {
                             let text = from_utf8(&data).unwrap();
                             println!("Unexpected reply: {}", text);
@@ -705,12 +709,9 @@ fn main() -> GameResult {
             match server_input.to_ascii_lowercase().as_str() {
                 "newgame" => {
                     GameServer::send_message("newgame".to_string());
-                    //let game = GameServer::new_game();
-                    //current_games.push(game);
-                    //println!("Current Games: {:?}", current_games);
                 },
                 "listgames" => {
-                    println!("Current Games: {:?}", current_games);
+                    GameServer::send_message("listgames".to_string());
                 },
                 "exit" => {
                     panic!("Exit!");
