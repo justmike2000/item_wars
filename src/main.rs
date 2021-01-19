@@ -47,15 +47,26 @@ const PACKET_SIZE: usize = 65_000;
 const UPDATES_PER_SECOND: f32 = 30.0;
 const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 
-#[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
+#[derive(PartialOrd, Clone, Copy, Debug)]
 struct Position {
     x: f32,
     y: f32,
+    w: f32,
+    h: f32,
 }
 
 impl From<Position> for Rect {
     fn from(pos: Position) -> Self {
-        Rect { x: pos.x, y: pos.y, w: GRID_CELL_SIZE, h: GRID_CELL_SIZE }
+        Rect { x: pos.x, y: pos.y, w: pos.w, h: pos.h }
+    }
+}
+
+impl PartialEq for Position {
+    fn eq(&self, other: &Self) -> bool {
+        if (self.x > other.x || self.x < other.x) && (self.y > other.y) {
+                return true    
+            }
+        false
     }
 }
 
@@ -164,11 +175,7 @@ impl Player {
     }
 
     fn eats(&self, potion: &Potion) -> bool {
-        let player_rect = Rect::new(self.body.x, self.body.y, PLAYER_CELL_WIDTH, PLAYER_JUMP_HEIGHT);
-        let potion_rect = Rect::new(potion.pos.x, potion.pos.y, POTION_WIDTH, POTION_HEIGHT);
-        println!("{:?}, {:?}", player_rect, potion_rect);
-
-        if player_rect == potion_rect {
+        if self.body == potion.pos {
             true
         } else {
             false
@@ -586,9 +593,11 @@ impl GameState {
         GameState::connect_client(host, player_name.clone(), game_id);
 
         let mut rng = rand::thread_rng();
-        let player_pos = Position { x: 100.0, y: 100.0 };
+        let player_pos = Position { x: 100.0, y: 100.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
-                                  y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32 };
+                                  y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32,
+                                  w: POTION_WIDTH,
+                                  h: POTION_HEIGHT };
         let potion_texture = textures.remove("potion").unwrap();
         let player_texture = textures.remove("hero").unwrap();
         let player = Player::new(player_name.clone(), player_pos, player_texture);
@@ -614,7 +623,9 @@ impl event::EventHandler for GameState {
                         Ate::Potion => {
                             let mut rng = rand::thread_rng();
                             self.food.pos = Position { x: rng.gen_range(0, (SCREEN_SIZE.0 - GRID_CELL_SIZE) as i16) as f32,
-                                                       y: rng.gen_range(0, (SCREEN_SIZE.1 - GRID_CELL_SIZE) as i16) as f32 }
+                                                       y: rng.gen_range(0, (SCREEN_SIZE.1 - GRID_CELL_SIZE) as i16) as f32 ,
+                                                       w: POTION_WIDTH,
+                                                       h: POTION_HEIGHT }
                         }
                     }
                 }
