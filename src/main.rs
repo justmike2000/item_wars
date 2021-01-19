@@ -18,6 +18,7 @@ use std::io::{Read, Write};
 use std::str::from_utf8;
 
 use rand::Rng;
+use uuid::Uuid;
 
 // The first thing we want to do is set up some constants that will help us out later.
 
@@ -453,15 +454,30 @@ impl Hud {
     }
 }
 
-struct GameServer {
-    
+#[derive(Debug)]
+pub struct NetworkedGame {
+    pub session_id: String,
+}
+
+impl NetworkedGame {
+
+    pub fn new() -> NetworkedGame {
+        let my_uuid = Uuid::new_v4().to_string();
+
+        NetworkedGame {
+            session_id: my_uuid,
+        }
+    }
+
+}
+
+pub struct GameServer {
 }
 
 impl GameServer {
 
     fn new() -> GameServer {
         GameServer {
-
         }
     }
 
@@ -478,7 +494,7 @@ impl GameServer {
         let mut buffer = [0; 65000];
     
         stream.read(&mut buffer).unwrap();
-        stream.write("got it!".to_string().as_bytes());
+        let _ = stream.write("got it!".to_string().as_bytes());
 
         println!("Request: {}", String::from_utf8_lossy(&buffer[..]));
     }
@@ -514,8 +530,8 @@ impl GameServer {
         }
     }
 
-    fn new_game() {
-
+    fn new_game() -> NetworkedGame {
+        NetworkedGame::new()
     }
 }
 
@@ -665,16 +681,21 @@ fn main() -> GameResult {
             gameserver.host();
         });
         let mut server_input = String::new();
-        let mut size = 0;
         println!("Started Item Wars Server on 7878");
-        while true {
+        let mut current_games: Vec<NetworkedGame> = vec![];
+        loop {
             server_input = "".to_string();
-            //print!("\nITEM WARS ENTER COMMAND :> ");
-            io::stdin().read_line(&mut server_input);
+            println!("\nITEM WARS ENTER COMMAND :> ");
+            let _ = io::stdin().read_line(&mut server_input);
             server_input.retain(|c| !c.is_whitespace());
             match server_input.to_ascii_lowercase().as_str() {
-                "new game" => {
-                    //gameserver::new_game();
+                "newgame" => {
+                    let game = GameServer::new_game();
+                    current_games.push(game);
+                    println!("Current Games: {:?}", current_games);
+                },
+                "listgames" => {
+                    println!("Current Games: {:?}", current_games);
                 },
                 "exit" => {
                     panic!("Exit!");
