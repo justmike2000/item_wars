@@ -44,7 +44,7 @@ const PACKET_SIZE: usize = 65_000;
 const UPDATES_PER_SECOND: f32 = 30.0;
 const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 
-#[derive(PartialEq, PartialOrd, Clone, Copy)]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 struct Position {
     x: f32,
     y: f32,
@@ -79,7 +79,7 @@ where
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Direction {
     up: bool,
     down: bool,
@@ -123,9 +123,7 @@ impl Potion {
 enum Ate {
     Potion,
 }
-
-/// Now we make a struct that contains all the information needed to describe the
-/// state of the Player itself.
+#[derive(Debug)]
 struct Player {
     /// First we have the body of the player, which is a single `Segment`.
     body: Position,
@@ -459,7 +457,8 @@ impl Hud {
 
 #[derive(Debug)]
 pub struct NetworkedGame {
-    pub session_id: String,
+    players: Vec<Player>,
+    session_id: String,
 }
 
 impl NetworkedGame {
@@ -468,6 +467,7 @@ impl NetworkedGame {
         let my_uuid = Uuid::new_v4().to_string();
 
         NetworkedGame {
+            players: vec![],
             session_id: my_uuid,
         }
     }
@@ -511,8 +511,14 @@ impl GameServer {
         } else if &request.to_string().as_str()[0..9] == "listgames" {
             let games = format!("Games: {:?}", self.games);
             let _ = stream.write(games.as_bytes());
+        } else if &request.to_string().as_str()[0..8] == "gameinfo" {
+            let game_id = &request.to_string().as_str()[8..44].to_string();
+            if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+                let response = format!("game_info:  {:?}", game);
+                let _ = stream.write(response.as_bytes());
+            }
         } else {
-            let _ = stream.write("got it!".to_string().as_bytes());
+            let _ = stream.write("Invalid Command".to_string().as_bytes());
         }
     }
 
@@ -535,6 +541,9 @@ impl GameServer {
                             let text = from_utf8(&data).unwrap();
                             println!("New game created: {}", text);
                         } else if &data[0..5] == "Games".as_bytes() {
+                            let text = from_utf8(&data).unwrap();
+                            println!("{}", text);
+                        } else if &data[0..9] == "game_info".as_bytes() {
                             let text = from_utf8(&data).unwrap();
                             println!("{}", text);
                         } else {
@@ -716,18 +725,12 @@ fn main() -> GameResult {
             println!("\nITEM WARS ENTER COMMAND :> ");
             let _ = io::stdin().read_line(&mut server_input);
             server_input.retain(|c| !c.is_whitespace());
-            match server_input.to_ascii_lowercase().as_str() {
-                "newgame" => {
-                    GameServer::send_message(server.clone().to_string(), "newgame".to_string());
-                },
-                "listgames" => {
-                    GameServer::send_message(server.clone().to_string(), "listgames".to_string());
-                },
-                "exit" => {
-                    panic!("Exit!");
-                },
-                _ => {},
+
+            let command = server_input.to_ascii_lowercase().to_string();
+            if command == "exit" {
+                panic!("Exit");
             }
+            GameServer::send_message(server.clone().to_string(), command);
         }
         Ok(())
     } else if let Some(list) = matches.clone().value_of("list") {
