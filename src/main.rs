@@ -75,17 +75,25 @@ struct Direction {
     right: bool,
 }
 
+#[derive(Debug, PartialEq)]
+enum PotionType {
+    Health,
+    Mana
+}
+
 #[derive(Debug)]
 struct Potion {
     pos: Position,
+    potion_type: PotionType,
     texture: ImageGeneric<GlBackendSpec>,
 }
 
 impl Potion {
 
-    pub fn new(pos: Position, texture: ImageGeneric<GlBackendSpec>) -> Self {
+    pub fn new(pos: Position, potion_type: PotionType, texture: ImageGeneric<GlBackendSpec>) -> Self {
         Potion {
             pos,
+            potion_type,
             texture
         }
     }
@@ -104,8 +112,15 @@ impl Potion {
         //let rectangle =
         //    graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), self.pos.into(), color)?;
         //graphics::draw(ctx, &rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
+        let potion_frame = if self.potion_type == PotionType::Health {
+            0.0
+        } else if self.potion_type == PotionType::Mana {
+            0.33
+        } else {
+            0.0
+        };
         let param = graphics::DrawParam::new()
-        .src(graphics::Rect {x: 0.0, y: 0.0, w: 0.33, h: 0.33})
+        .src(graphics::Rect {x: 0.0, y: potion_frame, w: 0.33, h: 0.33})
         .dest(Vec2::new(self.pos.x, self.pos.y))
         //.offset(Vec2::new(0.15, 0.0))
         .scale(Vec2::new(0.25, 0.25));
@@ -609,7 +624,7 @@ impl GameState {
 
         GameState {
             player: player,
-            food: Potion::new(food_pos, potion_texture),
+            food: Potion::new(food_pos, PotionType::Health, potion_texture),
             hud: Hud::new(),
             gameover: false,
             last_update: Instant::now(),
