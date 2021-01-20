@@ -34,11 +34,11 @@ const PLAYER_TOP_ACCEL_SPEED: f32 = 5.0;
 const PLAYER_ACCEL_SPEED: f32 = 0.2;
 const PLAYER_STARTING_ACCEL: f32 = 0.4;
 const PLAYER_JUMP_HEIGHT: f32 = 0.5;
-const PLAYER_CELL_HEIGHT: f32 = 42.0;
-const PLAYER_CELL_WIDTH: f32 = 32.0;
+const PLAYER_CELL_HEIGHT: f32 = 44.0;
+const PLAYER_CELL_WIDTH: f32 = 34.0;
 
-const POTION_WIDTH: f32 = 166.66;
-const POTION_HEIGHT: f32 = 166.66;
+const POTION_WIDTH: f32 = 42.0;
+const POTION_HEIGHT: f32 = 42.0;
 
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
@@ -63,10 +63,7 @@ impl From<Position> for Rect {
 
 impl PartialEq for Position {
     fn eq(&self, other: &Self) -> bool {
-        if (self.x > other.x || self.x < other.x) && (self.y > other.y) {
-                return true    
-            }
-        false
+        Rect::from(*self).overlaps(&Rect::from(*other))
     }
 }
 
@@ -86,14 +83,6 @@ struct Potion {
 
 impl Potion {
 
-    fn get_width(&self) -> f32 {
-        POTION_WIDTH
-    }
-
-    fn get_height(&self) -> f32 {
-        POTION_HEIGHT
-    }
-
     pub fn new(pos: Position, texture: ImageGeneric<GlBackendSpec>) -> Self {
         Potion {
             pos,
@@ -102,6 +91,15 @@ impl Potion {
     }
 
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+
+        //let black_rectangle = graphics::Mesh::new_rectangle(
+        //    ctx,
+        //    graphics::DrawMode::fill(),
+        //    Rect::new(self.pos.x, self.pos.y, self.pos.w, self.pos.h),
+        //    [0.0, 0.0, 0.0, 1.0].into(),
+        //)?;
+        //graphics::draw(ctx, &black_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+
         //let color = [0.0, 0.0, 1.0, 1.0].into();
         //let rectangle =
         //    graphics::Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), self.pos.into(), color)?;
@@ -253,7 +251,7 @@ impl Player {
         } else if self.current_accel > PLAYER_STARTING_ACCEL {
             self.move_direction_cooldown()
         }
-        if self.eats(food) {
+        if self.eats(food) && !self.jumping {
             self.ate = Some(Ate::Potion);
         } else {
             self.ate = None
@@ -300,6 +298,13 @@ impl Player {
         //    [1.0, 0.5, 0.0, 1.0].into(),
         //)?;
         //graphics::draw(ctx, &bounding_box_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        //let black_rectangle = graphics::Mesh::new_rectangle(
+        //    ctx,
+        //    graphics::DrawMode::fill(),
+        //    Rect::new(self.body.x, self.body.y, self.body.w, self.body.h),
+        //    [0.0, 0.0, 0.0, 1.0].into(),
+        //)?;
+        //graphics::draw(ctx, &black_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
 
         if self.jumping {
             let bounding_box_rectangle = graphics::Mesh::new_circle(
@@ -595,9 +600,9 @@ impl GameState {
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
-                                  y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32,
-                                  w: POTION_WIDTH,
-                                  h: POTION_HEIGHT };
+                                           y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32,
+                                           w: POTION_WIDTH,
+                                           h: POTION_HEIGHT };
         let potion_texture = textures.remove("potion").unwrap();
         let player_texture = textures.remove("hero").unwrap();
         let player = Player::new(player_name.clone(), player_pos, player_texture);
@@ -622,8 +627,8 @@ impl event::EventHandler for GameState {
                     match ate {
                         Ate::Potion => {
                             let mut rng = rand::thread_rng();
-                            self.food.pos = Position { x: rng.gen_range(0, (SCREEN_SIZE.0 - GRID_CELL_SIZE) as i16) as f32,
-                                                       y: rng.gen_range(0, (SCREEN_SIZE.1 - GRID_CELL_SIZE) as i16) as f32 ,
+                            self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - GRID_CELL_SIZE) as i16) as f32,
+                                                       y: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.1 - GRID_CELL_SIZE) as i16) as f32 ,
                                                        w: POTION_WIDTH,
                                                        h: POTION_HEIGHT }
                         }
