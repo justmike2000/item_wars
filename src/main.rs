@@ -642,10 +642,10 @@ impl event::EventHandler for GameState {
                     match ate {
                         Ate::Potion => {
                             let mut rng = rand::thread_rng();
-                            self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - GRID_CELL_SIZE) as i16) as f32,
-                                                       y: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.1 - GRID_CELL_SIZE) as i16) as f32 ,
+                            self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - POTION_WIDTH) as i16) as f32,
+                                                       y: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.1 - POTION_WIDTH) as i16) as f32 ,
                                                        w: POTION_WIDTH,
-                                                       h: POTION_HEIGHT }
+                                                       h: POTION_HEIGHT };
                         }
                     }
                 }
