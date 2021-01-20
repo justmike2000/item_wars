@@ -765,10 +765,10 @@ fn main() -> GameResult {
             server_input.retain(|c| !c.is_whitespace());
 
             let command = server_input.to_ascii_lowercase().to_string();
-            if command.len() > 8 && command[0..8].to_string() == "setgame" {
-                game_id = command[8..].to_string();
+            if command.len() >= 7 && command[0..7].to_string() == "setgame" {
+                game_id = command[7..].to_string();
                 println!("Game ID set to {}", game_id);
-            } else if command.len() > 9 && command[0..9].to_string() == "setplayer" {
+            } else if command.len() >= 9 && command[0..9].to_string() == "setplayer" {
                 player = command[9..].to_string();
                 println!("Playername set to {}", player);
             } else if command == "exit" {
