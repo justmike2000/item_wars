@@ -75,13 +75,13 @@ struct Direction {
     right: bool,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum PotionType {
     Health,
     Mana
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Potion {
     pos: Position,
     potion_type: PotionType,
@@ -131,10 +131,6 @@ impl Potion {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Ate {
-    Potion,
-}
 #[derive(Debug)]
 struct Player {
     /// First we have the body of the player, which is a single `Segment`.
@@ -143,7 +139,7 @@ struct Player {
     /// the direction it will move when `update` is called on it.
     dir: Direction,
     last_dir: Direction,
-    ate: Option<Ate>,
+    ate: Option<Potion>,
     /// Store the direction that will be used in the `update` after the next `update`
     /// This is needed so a user can press two directions (eg. left then up)
     /// before one `update` has happened. It sort of queues up key press input
@@ -267,7 +263,7 @@ impl Player {
             self.move_direction_cooldown()
         }
         if self.eats(food) && !self.jumping {
-            self.ate = Some(Ate::Potion);
+            self.ate = Some(food.clone());
         } else {
             self.ate = None
         }
@@ -305,6 +301,9 @@ impl Player {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        if let Some(ate) = &self.ate {
+            println!("{:?}", ate.pos);
+        }
         // And then we do the same for the head, instead making it fully red to distinguish it.
         //let bounding_box_rectangle = graphics::Mesh::new_rectangle(
         //    ctx,
@@ -638,16 +637,12 @@ impl event::EventHandler for GameState {
         if Instant::now() - self.last_update >= Duration::from_millis(MILLIS_PER_UPDATE) {
             if !self.gameover {
                 self.player.update(&self.food);
-                if let Some(ate) = self.player.ate {
-                    match ate {
-                        Ate::Potion => {
-                            let mut rng = rand::thread_rng();
-                            self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - POTION_WIDTH) as i16) as f32,
-                                                       y: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.1 - POTION_WIDTH) as i16) as f32 ,
-                                                       w: POTION_WIDTH,
-                                                       h: POTION_HEIGHT };
-                        }
-                    }
+                if let Some(ate) = &self.player.ate {
+                        let mut rng = rand::thread_rng();
+                        self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - POTION_WIDTH) as i16) as f32,
+                                                   y: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.1 - POTION_WIDTH) as i16) as f32 ,
+                                                   w: POTION_WIDTH,
+                                                   h: POTION_HEIGHT };
                 }
             }
             self.last_update = Instant::now();
