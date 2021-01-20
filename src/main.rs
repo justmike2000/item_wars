@@ -68,7 +68,7 @@ impl PartialEq for Position {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct Direction {
     up: bool,
     down: bool,
@@ -132,7 +132,7 @@ impl Potion {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Player {
     /// First we have the body of the player, which is a single `Segment`.
     body: Position,
@@ -393,6 +393,7 @@ impl Player {
     }
 }
 
+#[derive(Clone)]
 struct Hud {
 }
 
@@ -474,7 +475,7 @@ impl Hud {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NetworkedGame {
     players: Vec<Player>,
     session_id: String,
@@ -536,6 +537,13 @@ impl GameServer {
         println!("Received request: {}", string_request);
 
         let data = match parsed_request["command"].as_str() {
+            Some("newgame") => {
+                let game = NetworkedGame::new();
+                self.games.push(game.clone());
+                json!({
+                    "game_id": format!("{:?}", game.session_id),
+                })
+            },
             Some("listgames") => {
                 json!({
                     "games": format!("{:?}", self.games),
@@ -550,9 +558,6 @@ impl GameServer {
         let _ = stream.write(data.to_string().as_bytes());
 
         //if &request.to_string().as_str()[0..7] == "newgame" {
-        //    let game = NetworkedGame::new();
-        //    let _ = stream.write(format!("game_id: {}", game.session_id).as_bytes());
-        //    self.games.push(game);
         //} else if &request.to_string().as_str()[0..9] == "listgames" {
         //    let games = format!("Games: {:?}", self.games);
         //    let _ = stream.write(games.as_bytes());
@@ -605,6 +610,7 @@ impl GameServer {
     }
 }
 
+#[derive(Clone)]
 struct GameState {
     player: Player,
     food: Potion,
@@ -760,7 +766,8 @@ fn main() -> GameResult {
             if command == "exit" {
                 panic!("Exit");
             }
-            //GameServer::send_message(server.clone().to_string(), command);
+            let result = GameServer::send_message(server.clone().to_string(), "".to_string(), "".to_string(), command);
+            println!("{}", result);
         }
         Ok(())
     } else if let Some(list) = matches.clone().value_of("list") {
