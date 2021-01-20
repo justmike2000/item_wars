@@ -593,6 +593,8 @@ impl GameServer {
 struct GameState {
     player: Player,
     food: Potion,
+    server: String,
+    game_id: String,
     gameover: bool,
     last_update: Instant,
     hud: Hud,
@@ -606,10 +608,15 @@ impl GameState {
         GameServer::send_message(server, msg);
     }
 
+    fn get_world_state(server: String, player: String, game_id: String) {
+        let msg = format!("getworld: {} {}", player, game_id);
+        GameServer::send_message(server, msg);
+    }
+
     pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
         //std::thread::sleep(std::time::Duration::from_millis(1000));
-        GameState::connect_client(host, player_name.clone(), game_id);
+        GameState::connect_client(host.clone(), player_name.clone(), game_id.clone());
 
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
@@ -623,6 +630,8 @@ impl GameState {
 
         GameState {
             player: player,
+            server: host.clone(),
+            game_id: game_id.clone(),
             food: Potion::new(food_pos, PotionType::Health, potion_texture),
             hud: Hud::new(),
             gameover: false,
@@ -635,17 +644,18 @@ impl GameState {
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         if Instant::now() - self.last_update >= Duration::from_millis(MILLIS_PER_UPDATE) {
-            if !self.gameover {
-                self.player.update(&self.food);
-                if let Some(ate) = &self.player.ate {
-                        let mut rng = rand::thread_rng();
-                        self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - POTION_WIDTH) as i16) as f32,
-                                                   y: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.1 - POTION_WIDTH) as i16) as f32 ,
-                                                   w: POTION_WIDTH,
-                                                   h: POTION_HEIGHT };
-                }
-            }
-            self.last_update = Instant::now();
+            GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
+        //    if !self.gameover {
+        //        self.player.update(&self.food);
+        //        if let Some(ate) = &self.player.ate {
+        //                let mut rng = rand::thread_rng();
+        //                self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - POTION_WIDTH) as i16) as f32,
+        //                                           y: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.1 - POTION_WIDTH) as i16) as f32 ,
+        //                                           w: POTION_WIDTH,
+        //                                           h: POTION_HEIGHT };
+        //        }
+        //    }
+        //    self.last_update = Instant::now();
         }
         Ok(())
     }
