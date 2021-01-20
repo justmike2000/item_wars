@@ -1,7 +1,7 @@
 //! Author: @justmike2000
 //! Repo: https://github.com/justmike2000/item_wars/
 
-use ggez::event::{KeyCode, KeyMods};
+use ggez::{event::{KeyCode, KeyMods}, filesystem::resources_dir};
 use ggez::{event, graphics, Context, GameResult, timer};
 use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
@@ -549,6 +549,14 @@ impl GameServer {
                     "games": format!("{:?}", self.games),
                 })
             },
+            Some("gameinfo") => {
+                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+                if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+                    json!({"game": format!("{:?}", game)})
+                } else {
+                    json!({"error": format!("Invalid Game {}", game_id)})
+                }
+            },
             _ => {
                 json!({
                     "error": "Invalid Command",
@@ -557,16 +565,6 @@ impl GameServer {
         };
         let _ = stream.write(data.to_string().as_bytes());
 
-        //if &request.to_string().as_str()[0..7] == "newgame" {
-        //} else if &request.to_string().as_str()[0..9] == "listgames" {
-        //    let games = format!("Games: {:?}", self.games);
-        //    let _ = stream.write(games.as_bytes());
-        //} else if &request.to_string().as_str()[0..8] == "gameinfo" {
-        //    let game_id = &request.to_string().as_str()[8..44].to_string();
-        //    if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-        //        let response = format!("game_info:  {:?}", game);
-        //        let _ = stream.write(response.as_bytes());
-        //    }
         //} else if &request.to_string().as_str()[0..9] == "connected" {
         //    let request = &request.to_string().as_str()[0..9].to_string();
         //    println!("REQUEST: {}", request);
@@ -777,6 +775,12 @@ fn main() -> GameResult {
                 let result = GameServer::send_message(server.clone().to_string(),
                                                            game_id.clone(), player.to_string(), command);
                 println!("{}", result);
+                if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>((&result)) {
+                    if let Some(new_game_id) = result_obj["game_id"].as_str() {
+                        game_id = new_game_id.to_string();
+                        println!("Game ID set to {}", game_id);
+                    }
+                }
             }
         }
         Ok(())
