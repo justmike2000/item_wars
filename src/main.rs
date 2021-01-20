@@ -756,6 +756,8 @@ fn main() -> GameResult {
         let mut server_input = String::new();
         println!("Started Item Wars Server on {}", server);
         let mut current_games: Vec<NetworkedGame> = vec![];
+        let mut player = "".to_string();
+        let mut game_id = "".to_string();
         loop {
             server_input = "".to_string();
             println!("\nITEM WARS ENTER COMMAND :> ");
@@ -763,11 +765,19 @@ fn main() -> GameResult {
             server_input.retain(|c| !c.is_whitespace());
 
             let command = server_input.to_ascii_lowercase().to_string();
-            if command == "exit" {
+            if command.len() > 8 && command[0..8].to_string() == "setgame" {
+                game_id = command[8..].to_string();
+                println!("Game ID set to {}", game_id);
+            } else if command.len() > 9 && command[0..9].to_string() == "setplayer" {
+                player = command[9..].to_string();
+                println!("Playername set to {}", player);
+            } else if command == "exit" {
                 panic!("Exit");
+            } else {
+                let result = GameServer::send_message(server.clone().to_string(),
+                                                           game_id.clone(), player.to_string(), command);
+                println!("{}", result);
             }
-            let result = GameServer::send_message(server.clone().to_string(), "".to_string(), "".to_string(), command);
-            println!("{}", result);
         }
         Ok(())
     } else if let Some(list) = matches.clone().value_of("list") {
