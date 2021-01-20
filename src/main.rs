@@ -20,6 +20,7 @@ use std::str::from_utf8;
 use clap::{Arg, App};
 use rand::Rng;
 use uuid::Uuid;
+use serde_json::{Result, Value, json, *};
 
 // The first thing we want to do is set up some constants that will help us out later.
 
@@ -520,67 +521,81 @@ impl GameServer {
     
         stream.read(&mut buffer).unwrap();
         let request = String::from_utf8_lossy(&buffer[..]);
-        println!("Received request: {}", request.to_string().as_str());
-
-        if &request.to_string().as_str()[0..7] == "newgame" {
-            let game = NetworkedGame::new();
-            let _ = stream.write(format!("game_id: {}", game.session_id).as_bytes());
-            self.games.push(game);
-        } else if &request.to_string().as_str()[0..9] == "listgames" {
-            let games = format!("Games: {:?}", self.games);
-            let _ = stream.write(games.as_bytes());
-        } else if &request.to_string().as_str()[0..8] == "gameinfo" {
-            let game_id = &request.to_string().as_str()[8..44].to_string();
-            if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                let response = format!("game_info:  {:?}", game);
-                let _ = stream.write(response.as_bytes());
+        let end = match request.find("\0") {
+            Some(e) => e,
+            None => 65000
+        };
+        let string_request = request[0..end].to_string();
+        let parsed_request: serde_json::Value = match serde_json::from_str(&string_request) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Invalid request {}", string_request);
+                return 
             }
-        } else if &request.to_string().as_str()[0..9] == "connected" {
-            let request = &request.to_string().as_str()[0..9].to_string();
-            println!("REQUEST: {}", request);
-            //let games = format!("Games: {:?}", self.games);
-            //let _ = stream.write(games.as_bytes());
-        } else {
-            let _ = stream.write("Invalid Command".to_string().as_bytes());
-        }
+        };
+        println!("Received request: {}", string_request);
+
+        let data = match parsed_request["command"].as_str() {
+            Some("listgames") => {
+                json!({
+                    "games": format!("{:?}", self.games),
+                })
+            },
+            _ => {
+                json!({
+                    "error": "Invalid Command",
+                })
+            }
+        };
+        let _ = stream.write(data.to_string().as_bytes());
+
+        //if &request.to_string().as_str()[0..7] == "newgame" {
+        //    let game = NetworkedGame::new();
+        //    let _ = stream.write(format!("game_id: {}", game.session_id).as_bytes());
+        //    self.games.push(game);
+        //} else if &request.to_string().as_str()[0..9] == "listgames" {
+        //    let games = format!("Games: {:?}", self.games);
+        //    let _ = stream.write(games.as_bytes());
+        //} else if &request.to_string().as_str()[0..8] == "gameinfo" {
+        //    let game_id = &request.to_string().as_str()[8..44].to_string();
+        //    if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+        //        let response = format!("game_info:  {:?}", game);
+        //        let _ = stream.write(response.as_bytes());
+        //    }
+        //} else if &request.to_string().as_str()[0..9] == "connected" {
+        //    let request = &request.to_string().as_str()[0..9].to_string();
+        //    println!("REQUEST: {}", request);
+        //    //let games = format!("Games: {:?}", self.games);
+        //    //let _ = stream.write(games.as_bytes());
+        //} else {
+        //}
     }
 
-    fn send_message(host: String, msg: String) {
+    fn send_message(host: String, game_id: String, player: String, msg: String) -> String {
         match TcpStream::connect(host.clone()) {
             Ok(mut stream) => {
                 println!("Successfully connected to server {}", host);
     
-                let msg = format!("{}", msg);
+                let data = json!({
+                    "game_id": game_id.clone(),
+                    "name": player.clone(),
+                    "command": msg.clone()
+                });
+                let msg = data.to_string();
     
                 stream.write(msg.as_bytes()).unwrap();
                 println!("Sent {} awaiting reply...", msg);
     
                 let mut data = [0 as u8; PACKET_SIZE]; 
                 match stream.read(&mut data) {
-                    Ok(_) => {
-                        if &data[0..7] == "got it!".as_bytes() {
-                            println!("Reply is {:?}", std::str::from_utf8(&data).unwrap());
-                        } else if &data[0..7] == "game_id".as_bytes() {
-                            let text = from_utf8(&data).unwrap();
-                            println!("New game created: {}", text);
-                        } else if &data[0..5] == "Games".as_bytes() {
-                            let text = from_utf8(&data).unwrap();
-                            println!("{}", text);
-                        } else if &data[0..9] == "game_info".as_bytes() {
-                            let text = from_utf8(&data).unwrap();
-                            println!("{}", text);
-                        } else {
-                            let text = from_utf8(&data).unwrap();
-                            println!("Unexpected reply: {}", text);
-                        }
-                    },
+                    Ok(n) => String::from_utf8_lossy(&data)[0..n].to_string(),
                     Err(e) => {
-                        println!("Failed to receive data: {}", e);
+                        format!("Failed to connect: {}", e)
                     }
                 }
             },
             Err(e) => {
-                println!("Failed to connect: {}", e);
+                format!("Failed to connect: {}", e)
             }
         }
     }
@@ -604,13 +619,13 @@ struct GameState {
 impl GameState {
 
     fn connect_client(server: String, player: String, game_id: String) {
-        let msg = format!("connected: {} {}", player, game_id);
-        GameServer::send_message(server, msg);
+        let msg = format!("connected");
+        GameServer::send_message(server, game_id, player, msg);
     }
 
     fn get_world_state(server: String, player: String, game_id: String) {
-        let msg = format!("getworld: {} {}", player, game_id);
-        GameServer::send_message(server, msg);
+        let msg = format!("getworld");
+        GameServer::send_message(server, game_id, player, msg);
     }
 
     pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
@@ -745,11 +760,12 @@ fn main() -> GameResult {
             if command == "exit" {
                 panic!("Exit");
             }
-            GameServer::send_message(server.clone().to_string(), command);
+            //GameServer::send_message(server.clone().to_string(), command);
         }
         Ok(())
     } else if let Some(list) = matches.clone().value_of("list") {
-       GameServer::send_message(list.clone().to_string(), "listgames".to_string());
+       let games = GameServer::send_message(list.clone().to_string(), "".to_string(), "".to_string(), "listgames".to_string());
+       println!("{:?}", games);
        Ok(())
     } else {
         let player_name = matches.clone().value_of("player").unwrap_or("Player").to_string();
