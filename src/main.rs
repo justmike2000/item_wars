@@ -6,7 +6,7 @@ use ggez::{event, graphics, Context, GameResult, timer};
 use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
-use std::time::{Duration, Instant};
+use std::{char::MAX, time::{Duration, Instant}};
 use std::io;
 use std::path;
 use std::env;
@@ -482,6 +482,8 @@ impl Hud {
 pub struct NetworkedGame {
     players: Vec<Player>,
     session_id: String,
+    started: bool,
+    completed: bool,
 }
 
 impl NetworkedGame {
@@ -492,6 +494,8 @@ impl NetworkedGame {
         NetworkedGame {
             players: vec![],
             session_id: my_uuid,
+            started: false,
+            completed: false
         }
     }
 
@@ -544,12 +548,15 @@ impl GameServer {
                 let game = NetworkedGame::new();
                 self.games.push(game.clone());
                 json!({
-                    "game_id": format!("{:?}", game.session_id),
+                    "game_id": game.session_id,
                 })
             },
             Some("listgames") => {
+                let game_info: Vec<Vec<String>> = self.games.iter().map(|game| {
+                    vec![game.session_id.clone(), game.players.len().to_string()]
+                }).collect();
                 json!({
-                    "games": format!("{:?}", self.games),
+                    "games": game_info ,
                 })
             },
             Some("joingame") => {
@@ -559,9 +566,13 @@ impl GameServer {
                         let player_pos = Position { x: 0.0, y: 0.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
                         let new_player = Player::new(parsed_request["name"].as_str().unwrap_or("").to_string(), player_pos, None);
                         game.players.push(new_player);
+                        if game.players.len() == MAX_PLAYERS {
+                            println!("Starting game {}", game.session_id);
+                            game.started = true;
+                        }
                         json!({"info": format!("joined game {} with {} players", game.session_id, game.players.len())})
                     } else {
-                        json!({"error": format!("game {:?} is full", game)})
+                        json!({"error": format!("game {:?} is full", game.session_id)})
                     }
                 } else {
                     json!({"error": format!("Invalid Game {}", game_id)})
