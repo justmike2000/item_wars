@@ -581,7 +581,7 @@ impl GameServer {
             Some("gameinfo") => {
                 let game_id = parsed_request["game_id"].as_str().unwrap_or("");
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                    json!({"game": format!("{:?}", game)})
+                    json!({"game": vec![game.session_id.clone(), game.players.len().to_string()]})
                 } else {
                     json!({"error": format!("Invalid Game {}", game_id)})
                 }
