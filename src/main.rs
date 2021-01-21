@@ -559,7 +559,7 @@ impl GameServer {
                         let player_pos = Position { x: 0.0, y: 0.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
                         let new_player = Player::new(parsed_request["name"].as_str().unwrap_or("").to_string(), player_pos, None);
                         game.players.push(new_player);
-                        json!({"game": format!("{:?}", game)})
+                        json!({"info": format!("joined game {} with {} players", game.session_id, game.players.len())})
                     } else {
                         json!({"error": format!("game {:?} is full", game)})
                     }
@@ -634,7 +634,8 @@ impl GameState {
 
     fn join_game(server: String, player: String, game_id: String) {
         let msg = format!("joingame");
-        GameServer::send_message(server, game_id, player, msg);
+        let result = GameServer::send_message(server, game_id, player, msg);
+        println!("{}", result);
     }
 
     fn get_world_state(server: String, player: String, game_id: String) {
