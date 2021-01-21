@@ -27,6 +27,8 @@ use serde_json::{Result, Value, json, *};
 const SCREEN_SIZE: (f32, f32) = (640.0, 480.0);
 const GRID_CELL_SIZE: f32 = 32.0;
 
+const MAX_PLAYERS: usize = 2;
+
 const PLAYER_MAX_HP: i64 = 100;
 const PLAYER_MAX_MP: i64 = 30;
 const PLAYER_MAX_STR: i64 = 10;
@@ -152,7 +154,7 @@ struct Player {
     jumping: bool,
     jump_offset: f32,
     jump_direction: bool, // true up false down
-    texture: ImageGeneric<GlBackendSpec>,
+    texture: Option<ImageGeneric<GlBackendSpec>>,
     animation_frame: f32,
     animation_total_frames: f32,
     last_animation: std::time::Instant,
@@ -160,7 +162,7 @@ struct Player {
 }
 
 impl Player {
-    pub fn new(name: String, pos: Position, texture: ImageGeneric<GlBackendSpec>) -> Self {
+    pub fn new(name: String, pos: Position, texture: Option<ImageGeneric<GlBackendSpec>>) -> Self {
         // Our player will initially have a body and one body segment,
         // and will be moving to the right.
         Player {
@@ -387,8 +389,9 @@ impl Player {
         .scale(Vec2::new(0.1, 0.1));
         //.rotation((time % cycle) as f32 / cycle as f32 * 6.28)
         //.offset(Vec2::new(150.0, 150.0));
-        graphics::draw(ctx, &self.texture, param)?;
-
+        if let Some(player_texture) = &self.texture {
+            graphics::draw(ctx, player_texture, param)?;
+        }
         Ok(())
     }
 }
@@ -549,6 +552,21 @@ impl GameServer {
                     "games": format!("{:?}", self.games),
                 })
             },
+            Some("joingame") => {
+                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+                if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
+                    if game.players.len() < MAX_PLAYERS {
+                        let player_pos = Position { x: 0.0, y: 0.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
+                        let new_player = Player::new(parsed_request["name"].as_str().unwrap_or("").to_string(), player_pos, None);
+                        game.players.push(new_player);
+                        json!({"game": format!("{:?}", game)})
+                    } else {
+                        json!({"error": format!("game {:?} is full", game)})
+                    }
+                } else {
+                    json!({"error": format!("Invalid Game {}", game_id)})
+                }
+            },
             Some("gameinfo") => {
                 let game_id = parsed_request["game_id"].as_str().unwrap_or("");
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
@@ -564,14 +582,6 @@ impl GameServer {
             }
         };
         let _ = stream.write(data.to_string().as_bytes());
-
-        //} else if &request.to_string().as_str()[0..9] == "connected" {
-        //    let request = &request.to_string().as_str()[0..9].to_string();
-        //    println!("REQUEST: {}", request);
-        //    //let games = format!("Games: {:?}", self.games);
-        //    //let _ = stream.write(games.as_bytes());
-        //} else {
-        //}
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String) -> String {
@@ -622,8 +632,8 @@ struct GameState {
 
 impl GameState {
 
-    fn connect_client(server: String, player: String, game_id: String) {
-        let msg = format!("connected");
+    fn join_game(server: String, player: String, game_id: String) {
+        let msg = format!("joingame");
         GameServer::send_message(server, game_id, player, msg);
     }
 
@@ -635,7 +645,7 @@ impl GameState {
     pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
         //std::thread::sleep(std::time::Duration::from_millis(1000));
-        GameState::connect_client(host.clone(), player_name.clone(), game_id.clone());
+        GameState::join_game(host.clone(), player_name.clone(), game_id.clone());
 
         let mut rng = rand::thread_rng();
         let player_pos = Position { x: 100.0, y: 100.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
@@ -645,7 +655,7 @@ impl GameState {
                                            h: POTION_HEIGHT };
         let potion_texture = textures.remove("potion").unwrap();
         let player_texture = textures.remove("hero").unwrap();
-        let player = Player::new(player_name.clone(), player_pos, player_texture);
+        let player = Player::new(player_name.clone(), player_pos, Some(player_texture));
 
         GameState {
             player: player,
@@ -663,7 +673,7 @@ impl GameState {
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         if Instant::now() - self.last_update >= Duration::from_millis(MILLIS_PER_UPDATE) {
-            GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
+        //    GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
         //    if !self.gameover {
         //        self.player.update(&self.food);
         //        if let Some(ate) = &self.player.ate {
