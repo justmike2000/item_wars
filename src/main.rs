@@ -552,7 +552,7 @@ impl GameServer {
                 })
             },
             Some("listgames") => {
-                let game_info: Vec<Vec<String>> = self.games.iter().map(|game| {
+                let game_info: Vec<Vec<String>> = self.games.iter().filter(|game| !game.started ).map(|game| {
                     vec![game.session_id.clone(), game.players.len().to_string()]
                 }).collect();
                 json!({
