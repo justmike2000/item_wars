@@ -586,6 +586,14 @@ impl GameServer {
                     json!({"error": format!("Invalid Game {}", game_id)})
                 }
             },
+            Some("getworld") => {
+                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+                if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+                    json!({"game": vec![game.session_id.clone(), game.players.len().to_string()]})
+                } else {
+                    json!({"error": format!("Invalid Game {}", game_id)})
+                }
+            },
             _ => {
                 json!({
                     "error": "Invalid Command",
@@ -649,9 +657,9 @@ impl GameState {
         println!("{}", result);
     }
 
-    fn get_world_state(server: String, player: String, game_id: String) {
+    fn get_world_state(server: String, player: String, game_id: String) -> String {
         let msg = format!("getworld");
-        GameServer::send_message(server, game_id, player, msg);
+        GameServer::send_message(server, game_id, player, msg)
     }
 
     pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
@@ -684,6 +692,10 @@ impl GameState {
 
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
+         
+        let result = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
+        println!("{}", result);
+
         if Instant::now() - self.last_update >= Duration::from_millis(MILLIS_PER_UPDATE) {
         //    GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
         //    if !self.gameover {
