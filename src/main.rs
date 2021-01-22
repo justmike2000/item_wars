@@ -44,6 +44,8 @@ const PLAYER_CELL_WIDTH: f32 = 34.0;
 const POTION_WIDTH: f32 = 42.0;
 const POTION_HEIGHT: f32 = 42.0;
 
+const NET_GAME_START_CHECK_MILLIS: u64 = 5000;
+
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const PACKET_SIZE: usize = 65_000;
@@ -593,7 +595,7 @@ impl GameServer {
             Some("getworld") => {
                 let game_id = parsed_request["game_id"].as_str().unwrap_or("");
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                    json!({"game": vec![game]})
+                    json!(game)
                 } else {
                     json!({"error": format!("Invalid Game {}", game_id)})
                 }
@@ -697,8 +699,15 @@ impl GameState {
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
          
-        let result = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
-        println!("{}", result);
+        if Instant::now() - self.last_update >= Duration::from_millis(NET_GAME_START_CHECK_MILLIS) {
+            let result = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
+            let get_world = serde_json::from_str::<serde_json::Value>(&result).unwrap();
+            println!("Waiting for game {} to start...", self.game_id.clone());
+            if !get_world["started"].as_bool().unwrap_or(false) {
+                self.last_update = Instant::now();
+                return Ok(())
+            }
+        }
 
         if Instant::now() - self.last_update >= Duration::from_millis(MILLIS_PER_UPDATE) {
         //    GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
