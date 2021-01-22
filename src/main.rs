@@ -17,6 +17,7 @@ use std::net::TcpStream;
 use std::io::{Read, Write};
 use std::str::from_utf8;
 
+use serde::{Deserialize, Serialize};
 use clap::{Arg, App};
 use rand::Rng;
 use uuid::Uuid;
@@ -50,7 +51,7 @@ const PACKET_SIZE: usize = 65_000;
 const UPDATES_PER_SECOND: f32 = 30.0;
 const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 
-#[derive(PartialOrd, Clone, Copy, Debug)]
+#[derive(PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 struct Position {
     x: f32,
     y: f32,
@@ -70,7 +71,7 @@ impl PartialEq for Position {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 struct Direction {
     up: bool,
     down: bool,
@@ -78,17 +79,18 @@ struct Direction {
     right: bool,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 enum PotionType {
     Health,
     Mana
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Potion {
     pos: Position,
     potion_type: PotionType,
-    texture: ImageGeneric<GlBackendSpec>,
+    #[serde(skip_serializing, skip_deserializing)]
+    texture: Option<ImageGeneric<GlBackendSpec>>,
 }
 
 impl Potion {
@@ -97,7 +99,7 @@ impl Potion {
         Potion {
             pos,
             potion_type,
-            texture
+            texture: Some(texture),
         }
     }
 
@@ -129,12 +131,12 @@ impl Potion {
         .scale(Vec2::new(0.25, 0.25));
         //.rotation((time % cycle) as f32 / cycle as f32 * 6.28)
         //.offset(Vec2::new(150.0, 150.0));
-        graphics::draw(ctx, &self.texture, param)?;
+        graphics::draw(ctx, &self.texture.clone().unwrap(), param)?;
         Ok(())
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Player {
     /// First we have the body of the player, which is a single `Segment`.
     body: Position,
@@ -154,10 +156,12 @@ struct Player {
     jumping: bool,
     jump_offset: f32,
     jump_direction: bool, // true up false down
+    #[serde(skip_serializing, skip_deserializing)]
     texture: Option<ImageGeneric<GlBackendSpec>>,
     animation_frame: f32,
     animation_total_frames: f32,
-    last_animation: std::time::Instant,
+    #[serde(skip_serializing, skip_deserializing)]
+    last_animation: Option<std::time::Instant>,
     animation_duration: std::time::Duration,
 }
 
@@ -181,7 +185,7 @@ impl Player {
             jump_direction: true,
             animation_frame: 0.0,
             animation_total_frames: 4.0,
-            last_animation: std::time::Instant::now(),
+            last_animation: Some(std::time::Instant::now()),
             animation_duration:  Duration::new(0, 150_000_000),
         }
     }
@@ -294,8 +298,8 @@ impl Player {
 
     fn animate_frames(&mut self) {
         // Animation movement
-        if self.is_moving() && self.last_animation.elapsed() > self.animation_duration {
-            self.last_animation = Instant::now();
+        if self.is_moving() && self.last_animation.unwrap().elapsed() > self.animation_duration {
+            self.last_animation = Some(Instant::now());
             self.animation_frame += 1.0 / self.animation_total_frames;
             if self.animation_frame >= 1.0 {
                 self.animation_frame = 0.0;
@@ -478,7 +482,7 @@ impl Hud {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkedGame {
     players: Vec<Player>,
     session_id: String,
@@ -589,7 +593,7 @@ impl GameServer {
             Some("getworld") => {
                 let game_id = parsed_request["game_id"].as_str().unwrap_or("");
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                    json!({"game": vec![game.session_id.clone(), game.players.len().to_string()]})
+                    json!({"game": vec![game]})
                 } else {
                     json!({"error": format!("Invalid Game {}", game_id)})
                 }
