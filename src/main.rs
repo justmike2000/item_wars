@@ -51,7 +51,8 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 const PACKET_SIZE: usize = 65_000;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
-const MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
+const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
+const NET_MILLIS_PER_UPDATE: u64 = 20;
 
 #[derive(PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 struct Position {
@@ -601,9 +602,8 @@ impl GameServer {
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
                     let name = parsed_request["name"].as_str().unwrap_or("");
                     if let Some(player) = game.players.iter_mut().find(|p| &p.name == name) {
-                        let meta = parsed_request["meta"].as_str().unwrap_or("");
-                        let player_pos: Position = serde_json::from_str(meta).unwrap();
-                        player.body = player_pos;
+                        let update_player: Player = serde_json::from_str::<Player>(parsed_request["meta"].as_str().unwrap()).unwrap();
+                        *player = update_player;
                     }
                     json!(game)
                 } else {
@@ -671,7 +671,8 @@ struct GameState {
     game_id: String,
     started: bool,
     gameover: bool,
-    last_update: Instant,
+    last_draw_update: Instant,
+    last_net_update: Instant,
     hud: Hud,
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>
 }
@@ -684,13 +685,14 @@ impl GameState {
         println!("{}", result);
     }
 
-    fn get_world_state(server: String, player: String, game_id: String) -> String {
+    fn get_world_state(server: String, player: String, game_id: String) -> NetworkedGame {
         let msg = format!("getworld");
-        GameServer::send_message(server, game_id, player, msg, "".to_string())
+        let result = GameServer::send_message(server, game_id, player, msg, "".to_string());
+        serde_json::from_str(&result).unwrap()
     }
 
     fn send_position(server: String, player: Player, game_id: String) {
-        GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(player.body).to_string());
+        GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(player).to_string());
     }
 
     pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
@@ -718,7 +720,8 @@ impl GameState {
             hud: Hud::new(),
             gameover: false,
             started: false,
-            last_update: Instant::now(),
+            last_draw_update: Instant::now(),
+            last_net_update: Instant::now(),
             textures,
         }
     }
@@ -727,18 +730,20 @@ impl GameState {
 impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         if !self.started {
-            if Instant::now() - self.last_update >= Duration::from_millis(NET_GAME_START_CHECK_MILLIS) {
-                let result = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
-                let get_world: NetworkedGame = serde_json::from_str(&result).unwrap();
+            if Instant::now() - self.last_net_update >= Duration::from_millis(NET_GAME_START_CHECK_MILLIS) {
+                let get_world = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
                 if !get_world.started {
                     println!("Waiting for game {} to start...", self.game_id.clone());
-                    self.last_update = Instant::now();
+                    self.last_net_update = Instant::now();
                     return Ok(())
                 } else {
                     println!("Game started!");
-                    if let Some(opponent) = get_world.players.iter().find(|p| p.name == self.player.name) {
+                    if let Some(opponent) = get_world.players.iter().find(|p| p.name != self.player.name) {
                         self.opponent.name = opponent.name.clone();
                         self.opponent.body = opponent.body;
+                        self.opponent.dir = opponent.dir.clone();
+                        self.opponent.last_dir = opponent.last_dir.clone();
+                        self.opponent.jumping = opponent.jumping;
                     }
                     self.started = true
                 }
@@ -747,11 +752,24 @@ impl event::EventHandler for GameState {
             }
         } 
 
-        if Instant::now() - self.last_update >= Duration::from_millis(MILLIS_PER_UPDATE) {
-            GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
+        if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
             if !self.gameover {
                 let former_pos = self.player.body;
                 self.player.update();
+
+                if Instant::now() - self.last_net_update >= Duration::from_millis(NET_MILLIS_PER_UPDATE) {
+                    GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
+                    let get_world = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
+                    if let Some(opponent) = get_world.players.iter().find(|p| p.name != self.player.name) {
+                        self.opponent.name = opponent.name.clone();
+                        self.opponent.body = opponent.body;
+                        self.opponent.dir = opponent.dir.clone();
+                        self.opponent.last_dir = opponent.last_dir.clone();
+                        self.opponent.jumping = opponent.jumping;
+                        self.opponent.update();
+                    }
+                    self.last_net_update = Instant::now();
+                }
                 //if let Some(ate) = &self.player.ate {
                 //        let mut rng = rand::thread_rng();
                 //        self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - POTION_WIDTH) as i16) as f32,
@@ -760,7 +778,7 @@ impl event::EventHandler for GameState {
                 //                                   h: POTION_HEIGHT };
                 //}
             }
-            self.last_update = Instant::now();
+            self.last_draw_update = Instant::now();
         }
         Ok(())
     }
