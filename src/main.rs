@@ -1,9 +1,9 @@
 //! Author: @justmike2000
 //! Repo: https://github.com/justmike2000/item_wars/
 
-use ggez::{event::{KeyCode, KeyMods}, filesystem::resources_dir};
+use ggez::{event::{KeyCode, KeyMods}, filesystem::{open, resources_dir}};
 use ggez::{event, graphics, Context, GameResult, timer};
-use graphics::{GlBackendSpec, ImageGeneric, Rect};
+use graphics::{GlBackendSpec, ImageGeneric, Rect, pipe::new};
 use glam::*;
 
 use std::{char::MAX, time::{Duration, Instant}};
@@ -252,7 +252,7 @@ impl Player {
         self.dir.up || self.dir.down || self.dir.left || self.dir.right
     }
 
-    fn update(&mut self, food: &Potion) {
+    fn update(&mut self) {
         if self.jumping {
             if self.jump_direction && self.jump_offset < PLAYER_JUMP_HEIGHT {
                 self.jump_offset += 0.1;
@@ -271,11 +271,11 @@ impl Player {
         } else if self.current_accel > PLAYER_STARTING_ACCEL {
             self.move_direction_cooldown()
         }
-        if self.eats(food) && !self.jumping {
-            self.ate = Some(food.clone());
-        } else {
-            self.ate = None
-        }
+        //if self.eats(food) && !self.jumping {
+        //    self.ate = Some(food.clone());
+        //} else {
+        //    self.ate = None
+        //}
     }
 
     fn get_animation_direction(&self) -> f32 {
@@ -547,7 +547,7 @@ impl GameServer {
                 return 
             }
         };
-        println!("Received request: {}", string_request);
+        //println!("Received request: {}", string_request);
 
         let data = match parsed_request["command"].as_str() {
             Some("newgame") => {
@@ -592,6 +592,20 @@ impl GameServer {
                 let game_id = parsed_request["game_id"].as_str().unwrap_or("");
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
                     json!({"game": vec![game.session_id.clone(), game.players.len().to_string()]})
+                } else {
+                    json!({"error": format!("Invalid Game {}", game_id)})
+                }
+            },
+            Some("sendposition") => {
+                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+                if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
+                    let name = parsed_request["name"].as_str().unwrap_or("");
+                    if let Some(player) = game.players.iter_mut().find(|p| &p.name == name) {
+                        let meta = parsed_request["meta"].as_str().unwrap_or("");
+                        let player_pos: Position = serde_json::from_str(meta).unwrap();
+                        player.body = player_pos;
+                    }
+                    json!(game)
                 } else {
                     json!({"error": format!("Invalid Game {}", game_id)})
                 }
@@ -651,6 +665,7 @@ impl GameServer {
 #[derive(Clone)]
 struct GameState {
     player: Player,
+    opponent: Player,
     food: Potion,
     server: String,
     game_id: String,
@@ -691,10 +706,12 @@ impl GameState {
                                            h: POTION_HEIGHT };
         let potion_texture = textures.remove("potion").unwrap();
         let player_texture = textures.remove("hero").unwrap();
-        let player = Player::new(player_name.clone(), player_pos, Some(player_texture));
+        let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
+        let opponent = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
 
         GameState {
             player: player,
+            opponent: opponent,
             server: host.clone(),
             game_id: game_id.clone(),
             food: Potion::new(food_pos, PotionType::Health, potion_texture),
@@ -712,13 +729,17 @@ impl event::EventHandler for GameState {
         if !self.started {
             if Instant::now() - self.last_update >= Duration::from_millis(NET_GAME_START_CHECK_MILLIS) {
                 let result = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
-                let get_world = serde_json::from_str::<serde_json::Value>(&result).unwrap();
-                if !get_world["started"].as_bool().unwrap_or(false) {
+                let get_world: NetworkedGame = serde_json::from_str(&result).unwrap();
+                if !get_world.started {
                     println!("Waiting for game {} to start...", self.game_id.clone());
                     self.last_update = Instant::now();
                     return Ok(())
                 } else {
                     println!("Game started!");
+                    if let Some(opponent) = get_world.players.iter().find(|p| p.name == self.player.name) {
+                        self.opponent.name = opponent.name.clone();
+                        self.opponent.body = opponent.body;
+                    }
                     self.started = true
                 }
             } else {
@@ -730,10 +751,7 @@ impl event::EventHandler for GameState {
             GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
             if !self.gameover {
                 let former_pos = self.player.body;
-                self.player.update(&self.food);
-                if self.player.is_moving() || former_pos != self.player.body {
-                    GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
-                }
+                self.player.update();
                 //if let Some(ate) = &self.player.ate {
                 //        let mut rng = rand::thread_rng();
                 //        self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - POTION_WIDTH) as i16) as f32,
@@ -757,6 +775,7 @@ impl event::EventHandler for GameState {
 
         // Then we tell the player and the items to draw themselves
         self.player.draw(ctx)?;
+        self.opponent.draw(ctx)?;
         self.food.draw(ctx)?;
         self.hud.draw(ctx, &self.player)?;
 
