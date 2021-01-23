@@ -613,7 +613,7 @@ impl GameServer {
         let _ = stream.write(data.to_string().as_bytes());
     }
 
-    fn send_message(host: String, game_id: String, player: String, msg: String) -> String {
+    fn send_message(host: String, game_id: String, player: String, msg: String, meta: String) -> String {
         match TcpStream::connect(host.clone()) {
             Ok(mut stream) => {
                 //println!("Successfully connected to server {}", host);
@@ -621,7 +621,8 @@ impl GameServer {
                 let data = json!({
                     "game_id": game_id.clone(),
                     "name": player.clone(),
-                    "command": msg.clone()
+                    "command": msg.clone(),
+                    "meta": meta.clone(),
                 });
                 let msg = data.to_string();
     
@@ -664,13 +665,17 @@ impl GameState {
 
     fn join_game(server: String, player: String, game_id: String) {
         let msg = format!("joingame");
-        let result = GameServer::send_message(server, game_id, player, msg);
+        let result = GameServer::send_message(server, game_id, player, msg, "".to_string());
         println!("{}", result);
     }
 
     fn get_world_state(server: String, player: String, game_id: String) -> String {
         let msg = format!("getworld");
-        GameServer::send_message(server, game_id, player, msg)
+        GameServer::send_message(server, game_id, player, msg, "".to_string())
+    }
+
+    fn send_position(server: String, player: Player, game_id: String) {
+        GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(player.body).to_string());
     }
 
     pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
@@ -713,6 +718,7 @@ impl event::EventHandler for GameState {
                     self.last_update = Instant::now();
                     return Ok(())
                 } else {
+                    println!("Game started!");
                     self.started = true
                 }
             } else {
@@ -725,8 +731,8 @@ impl event::EventHandler for GameState {
             if !self.gameover {
                 let former_pos = self.player.body;
                 self.player.update(&self.food);
-                if former_pos != self.player.body {
-                    println!("Moved!");
+                if self.player.is_moving() || former_pos != self.player.body {
+                    GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
                 }
                 //if let Some(ate) = &self.player.ate {
                 //        let mut rng = rand::thread_rng();
@@ -835,7 +841,7 @@ fn main() -> GameResult {
                 panic!("Exit");
             } else {
                 let result = GameServer::send_message(server.clone().to_string(),
-                                                           game_id.clone(), player.to_string(), command);
+                                                           game_id.clone(), player.to_string(), command, "".to_string());
                 println!("{}", result);
                 if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>((&result)) {
                     if let Some(new_game_id) = result_obj["game_id"].as_str() {
@@ -847,7 +853,7 @@ fn main() -> GameResult {
         }
         Ok(())
     } else if let Some(list) = matches.clone().value_of("list") {
-       let games = GameServer::send_message(list.clone().to_string(), "".to_string(), "".to_string(), "listgames".to_string());
+       let games = GameServer::send_message(list.clone().to_string(), "".to_string(), "".to_string(), "listgames".to_string(), "".to_string());
        println!("{:?}", games);
        Ok(())
     } else {
