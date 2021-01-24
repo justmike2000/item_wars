@@ -6,13 +6,13 @@ use ggez::{event, graphics, Context, GameResult, timer};
 use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
-use std::{char::MAX, time::{Duration, Instant}};
+use std::{char::MAX, intrinsics::transmute, time::{Duration, Instant}};
 use std::io;
 use std::path;
 use std::env;
 use std::collections::HashMap;
 use std::io::prelude::*;
-use std::net::UdpSocket;
+use std::net::{UdpSocket, ToSocketAddrs};
 use std::io::{Read, Write};
 use std::str::from_utf8;
 
@@ -52,6 +52,9 @@ const PACKET_SIZE: usize = 1_000;
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 const NET_MILLIS_PER_UPDATE: u64 = 20;
+
+const SERVER_PORT: i32 = 7878;
+const SEND_PORT: i32 = 34254;
 
 #[derive(PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 struct Position {
@@ -509,41 +512,46 @@ impl NetworkedGame {
 
 pub struct GameServer {
     hostname: String,
-    games: Vec<NetworkedGame>
+    games: Vec<NetworkedGame>,
+    socket: UdpSocket,
 }
 
 impl GameServer {
 
     fn new(hostname: String) -> GameServer {
+        let addr = format!("{}:{}", hostname.clone(), SERVER_PORT); 
+        let listener = UdpSocket::bind(addr).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        listener.set_broadcast(true).unwrap();
+        listener.set_read_timeout(Some(Duration::new(5, 0))).unwrap();
+
         GameServer {
             hostname,
             games: vec![],
+            socket: listener,
         }
     }
 
     fn host(&mut self) {
-        let listener = UdpSocket::bind(self.hostname.as_str()).unwrap();
-
         let mut buf = [0; PACKET_SIZE];
         loop {
-           match listener.recv_from(&mut buf) {
+           match self.socket.recv_from(&mut buf) {
                Ok((amt, src)) => {
                    let request = String::from_utf8_lossy(&buf[..]);
-                   self.handle_connection(request.to_string());
+                   self.handle_connection(request.to_string(), amt, src.to_string());
                },
                Err(e) => {
-                   println!("couldn't recieve a datagram: {}", e);
+                   //println!("couldn't recieve a datagram: {}", e);
                }
            }
         }
     }
 
-    fn handle_connection(&mut self, request: String) {
-        let socket = UdpSocket::bind(self.hostname.as_str()).unwrap();
-        let parsed_request: serde_json::Value = match serde_json::from_str(&request) {
+    fn handle_connection(&mut self, mut request: String, amt: usize, dst: String) {
+        let parsed_request: serde_json::Value = match serde_json::from_str(&request[..amt]) {
             Ok(r) => r,
             Err(e) => {
-                println!("Invalid request {}", request);
+                println!("Invalid request {} - {}", request, e);
                 return 
             }
         };
@@ -623,11 +631,12 @@ impl GameServer {
                 })
             }
         };
-        socket.send(data.to_string().as_bytes());
+        self.socket.send_to(data.to_string().as_bytes(), dst.clone());
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String) -> String {
-        let socket = UdpSocket::bind(host.clone()).unwrap();
+        let addr = format!("{}:{}", host, SEND_PORT);
+        let socket = UdpSocket::bind(addr).unwrap();
 
         //println!("Successfully connected to server {}", host);
     
@@ -639,7 +648,8 @@ impl GameServer {
         });
         let msg = data.to_string();
     
-        socket.send(msg.as_bytes()).unwrap();
+        let server = format!("{}:{}", host.clone(), SERVER_PORT);
+        socket.send_to(msg.as_bytes(), server);
         //println!("Sent {} awaiting reply...", msg);
     
         let mut data = [0 as u8; PACKET_SIZE]; 
@@ -668,7 +678,7 @@ struct GameState {
     last_draw_update: Instant,
     last_net_update: Instant,
     hud: Hud,
-    textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>
+    textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>,
 }
 
 impl GameState {
@@ -689,8 +699,9 @@ impl GameState {
         GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(player).to_string());
     }
 
-    pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
+    pub fn new<'a>(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
+        let game_server = GameServer::new(host.clone());
         //std::thread::sleep(std::time::Duration::from_millis(1000));
         GameState::join_game(host.clone(), player_name.clone(), game_id.clone());
 
