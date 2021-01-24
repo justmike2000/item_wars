@@ -12,8 +12,7 @@ use std::path;
 use std::env;
 use std::collections::HashMap;
 use std::io::prelude::*;
-use std::net::TcpListener;
-use std::net::TcpStream;
+use std::net::UdpSocket;
 use std::io::{Read, Write};
 use std::str::from_utf8;
 
@@ -48,7 +47,7 @@ const NET_GAME_START_CHECK_MILLIS: u64 = 5000;
 
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
-const PACKET_SIZE: usize = 65_000;
+const PACKET_SIZE: usize = 1_000;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
@@ -523,28 +522,28 @@ impl GameServer {
     }
 
     fn host(&mut self) {
-        let listener = TcpListener::bind(self.hostname.as_str()).unwrap();
+        let listener = UdpSocket::bind(self.hostname.as_str()).unwrap();
 
-        for stream in listener.incoming() {
-            let stream = stream.unwrap();
-            self.handle_connection(stream)
+        let mut buf = [0; PACKET_SIZE];
+        loop {
+           match listener.recv_from(&mut buf) {
+               Ok((amt, src)) => {
+                   let request = String::from_utf8_lossy(&buf[..]);
+                   self.handle_connection(request.to_string());
+               },
+               Err(e) => {
+                   println!("couldn't recieve a datagram: {}", e);
+               }
+           }
         }
     }
 
-    fn handle_connection(&mut self, mut stream: TcpStream) {
-        let mut buffer = [0; PACKET_SIZE];
-    
-        stream.read(&mut buffer).unwrap();
-        let request = String::from_utf8_lossy(&buffer[..]);
-        let end = match request.find("\0") {
-            Some(e) => e,
-            None => 65000
-        };
-        let string_request = request[0..end].to_string();
-        let parsed_request: serde_json::Value = match serde_json::from_str(&string_request) {
+    fn handle_connection(&mut self, request: String) {
+        let socket = UdpSocket::bind(self.hostname.as_str()).unwrap();
+        let parsed_request: serde_json::Value = match serde_json::from_str(&request) {
             Ok(r) => r,
             Err(e) => {
-                println!("Invalid request {}", string_request);
+                println!("Invalid request {}", request);
                 return 
             }
         };
@@ -624,33 +623,28 @@ impl GameServer {
                 })
             }
         };
-        let _ = stream.write(data.to_string().as_bytes());
+        socket.send(data.to_string().as_bytes());
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String) -> String {
-        match TcpStream::connect(host.clone()) {
-            Ok(mut stream) => {
-                //println!("Successfully connected to server {}", host);
+        let socket = UdpSocket::bind(host.clone()).unwrap();
+
+        //println!("Successfully connected to server {}", host);
     
-                let data = json!({
-                    "game_id": game_id.clone(),
-                    "name": player.clone(),
-                    "command": msg.clone(),
-                    "meta": meta.clone(),
-                });
-                let msg = data.to_string();
+        let data = json!({
+            "game_id": game_id.clone(),
+            "name": player.clone(),
+            "command": msg.clone(),
+            "meta": meta.clone(),
+        });
+        let msg = data.to_string();
     
-                stream.write(msg.as_bytes()).unwrap();
-                //println!("Sent {} awaiting reply...", msg);
+        socket.send(msg.as_bytes()).unwrap();
+        //println!("Sent {} awaiting reply...", msg);
     
-                let mut data = [0 as u8; PACKET_SIZE]; 
-                match stream.read(&mut data) {
-                    Ok(n) => String::from_utf8_lossy(&data)[0..n].to_string(),
-                    Err(e) => {
-                        format!("Failed to connect: {}", e)
-                    }
-                }
-            },
+        let mut data = [0 as u8; PACKET_SIZE]; 
+        match socket.recv_from(&mut data) {
+            Ok((amt, _)) => String::from_utf8_lossy(&data)[0..amt].to_string(),
             Err(e) => {
                 format!("Failed to connect: {}", e)
             }
