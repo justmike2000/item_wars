@@ -513,32 +513,30 @@ impl NetworkedGame {
 pub struct GameServer {
     hostname: String,
     games: Vec<NetworkedGame>,
-    socket: UdpSocket,
 }
 
 impl GameServer {
 
     fn new(hostname: String) -> GameServer {
-        let addr = format!("{}:{}", hostname.clone(), SERVER_PORT); 
+        GameServer {
+            hostname,
+            games: vec![],
+        }
+    }
+
+    fn host(&mut self) {
+        let addr = format!("{}:{}", self.hostname.clone(), SERVER_PORT); 
         let listener = UdpSocket::bind(addr).unwrap();
         listener.set_nonblocking(true).unwrap();
         listener.set_broadcast(true).unwrap();
         listener.set_read_timeout(Some(Duration::new(5, 0))).unwrap();
 
-        GameServer {
-            hostname,
-            games: vec![],
-            socket: listener,
-        }
-    }
-
-    fn host(&mut self) {
         let mut buf = [0; PACKET_SIZE];
         loop {
-           match self.socket.recv_from(&mut buf) {
+           match listener.recv_from(&mut buf) {
                Ok((amt, src)) => {
                    let request = String::from_utf8_lossy(&buf[..]);
-                   self.handle_connection(request.to_string(), amt, src.to_string());
+                   self.handle_connection(request.to_string(), amt, src.to_string(), &listener);
                },
                Err(e) => {
                    //println!("couldn't recieve a datagram: {}", e);
@@ -547,7 +545,7 @@ impl GameServer {
         }
     }
 
-    fn handle_connection(&mut self, mut request: String, amt: usize, dst: String) {
+    fn handle_connection(&mut self, mut request: String, amt: usize, dst: String, socket: &UdpSocket) {
         let parsed_request: serde_json::Value = match serde_json::from_str(&request[..amt]) {
             Ok(r) => r,
             Err(e) => {
@@ -631,7 +629,7 @@ impl GameServer {
                 })
             }
         };
-        self.socket.send_to(data.to_string().as_bytes(), dst.clone());
+        socket.send_to(data.to_string().as_bytes(), dst.clone());
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String) -> String {
