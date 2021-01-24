@@ -633,7 +633,7 @@ impl GameServer {
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String) -> String {
-        let addr = format!("{}:{}", host, SEND_PORT);
+        let addr = format!("{}:{}", "0.0.0.0", SEND_PORT);
         let socket = UdpSocket::bind(addr).unwrap();
 
         //println!("Successfully connected to server {}", host);
