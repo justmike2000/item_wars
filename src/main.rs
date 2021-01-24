@@ -3,7 +3,7 @@
 
 use ggez::{event::{KeyCode, KeyMods}, filesystem::{open, resources_dir}};
 use ggez::{event, graphics, Context, GameResult, timer};
-use graphics::{GlBackendSpec, ImageGeneric, Rect, pipe::new};
+use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
 use std::{char::MAX, time::{Duration, Instant}};
@@ -754,7 +754,6 @@ impl event::EventHandler for GameState {
 
         if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
             if !self.gameover {
-                let former_pos = self.player.body;
                 self.player.update();
 
                 if Instant::now() - self.last_net_update >= Duration::from_millis(NET_MILLIS_PER_UPDATE) {
