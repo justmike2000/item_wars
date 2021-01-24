@@ -54,7 +54,7 @@ const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 const NET_MILLIS_PER_UPDATE: u64 = 20;
 
 const SERVER_PORT: i32 = 7878;
-const SEND_PORT: i32 = 34254;
+const SEND_PORT: i32 = 0;
 
 #[derive(PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 struct Position {
