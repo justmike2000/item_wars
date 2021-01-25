@@ -191,13 +191,13 @@ impl Player {
         }
     }
 
-    fn eats(&self, potion: &Potion) -> bool {
-        if self.body == potion.pos {
-            true
-        } else {
-            false
-        }
-    }
+    //fn eats(&self, potion: &Potion) -> bool {
+    //    if self.body == potion.pos {
+    //        true
+    //    } else {
+    //        false
+    //    }
+    //}
 
     fn reset_last_dir(&mut self) {
         self.last_dir.left = false;
@@ -860,12 +860,12 @@ fn main() -> GameResult {
             let mut gameserver = GameServer::new(safe_server);
             gameserver.host();
         });
-        let mut server_input = String::new();
+        //let mut server_input = String::new();
         println!("Started Item Wars Server on {}", server);
         let mut player = "".to_string();
         let mut game_id = "".to_string();
         loop {
-            server_input = "".to_string();
+            let mut server_input = "".to_string();
             println!("\nITEM WARS ENTER COMMAND :> ");
             let _ = io::stdin().read_line(&mut server_input);
             server_input.retain(|c| !c.is_whitespace());
