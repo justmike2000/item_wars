@@ -21,6 +21,7 @@ use clap::{Arg, App};
 use rand::Rng;
 use uuid::Uuid;
 use serde_json::{Result, Value, json, *};
+use crossbeam_channel::unbounded;
 
 // The first thing we want to do is set up some constants that will help us out later.
 
@@ -677,6 +678,7 @@ struct GameState {
     last_net_update: Instant,
     hud: Hud,
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>,
+    world_receiver: crossbeam_channel::Receiver<NetworkedGame>,
 }
 
 impl GameState {
@@ -714,8 +716,10 @@ impl GameState {
         let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
         let opponent = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
 
-        GameState {
-            player: player,
+        let (s, r) = unbounded();
+
+        let game_state = GameState {
+            player: player.clone(),
             opponent: opponent,
             server: host.clone(),
             game_id: game_id.clone(),
@@ -726,7 +730,23 @@ impl GameState {
             last_draw_update: Instant::now(),
             last_net_update: Instant::now(),
             textures,
-        }
+            world_receiver: r,
+        };
+
+        let threaded_host = host.clone();
+        let threaded_player = player.clone();
+
+        std::thread::spawn(move || {
+            let mut last_net_update = Instant::now();
+            loop {
+                if Instant::now() - last_net_update >= Duration::from_millis(NET_MILLIS_PER_UPDATE) {
+                    let get_world = GameState::get_world_state(threaded_host.clone(), threaded_player.name.clone(), game_id.clone());
+                    s.send(get_world).unwrap();
+                    last_net_update = Instant::now();
+                }
+            }
+        });
+        game_state
     }
 }
 
@@ -741,13 +761,6 @@ impl event::EventHandler for GameState {
                     return Ok(())
                 } else {
                     println!("Game started!");
-                    if let Some(opponent) = get_world.players.iter().find(|p| p.name != self.player.name) {
-                        self.opponent.name = opponent.name.clone();
-                        self.opponent.body = opponent.body;
-                        self.opponent.dir = opponent.dir.clone();
-                        self.opponent.last_dir = opponent.last_dir.clone();
-                        self.opponent.jumping = opponent.jumping;
-                    }
                     self.started = true
                 }
             } else {
@@ -758,29 +771,19 @@ impl event::EventHandler for GameState {
         if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
             if !self.gameover {
                 self.player.update();
-
-                if Instant::now() - self.last_net_update >= Duration::from_millis(NET_MILLIS_PER_UPDATE) {
-                    GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
-                    let get_world = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
-                    if let Some(opponent) = get_world.players.iter().find(|p| p.name != self.player.name) {
-                        self.opponent.name = opponent.name.clone();
-                        self.opponent.body = opponent.body;
-                        self.opponent.dir = opponent.dir.clone();
-                        self.opponent.last_dir = opponent.last_dir.clone();
-                        self.opponent.jumping = opponent.jumping;
-                        self.opponent.update();
-                    }
-                    self.last_net_update = Instant::now();
-                }
-                //if let Some(ate) = &self.player.ate {
-                //        let mut rng = rand::thread_rng();
-                //        self.food.pos = Position { x: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.0 - POTION_WIDTH) as i16) as f32,
-                //                                   y: rng.gen_range(GRID_CELL_SIZE as i16, (SCREEN_SIZE.1 - POTION_WIDTH) as i16) as f32 ,
-                //                                   w: POTION_WIDTH,
-                //                                   h: POTION_HEIGHT };
-                //}
+                GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
             }
             self.last_draw_update = Instant::now();
+        }
+        if let Ok(world) = self.world_receiver.try_recv() {
+            if let Some(opponent) = world.players.iter().find(|p| p.name != self.player.name) {
+                self.opponent.name = opponent.name.clone();
+                self.opponent.body = opponent.body;
+                self.opponent.dir = opponent.dir.clone();
+                self.opponent.last_dir = opponent.last_dir.clone();
+                self.opponent.jumping = opponent.jumping;
+                self.opponent.update();
+                }
         }
         Ok(())
     }
