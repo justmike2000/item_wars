@@ -930,6 +930,14 @@ fn main() -> GameResult {
                 panic!("Please provide gameid.")
             },
         };
+        let check_world_game = GameState::get_world_state(host.clone(), player_name.clone(), game_id.clone());
+        if !check_world_game.started {
+            for player in check_world_game.players.iter() {
+                if player_name == player_name {
+                    panic!("Game already has player of same name!");
+                }
+            }
+        }
 
         let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
             let mut path = path::PathBuf::from(manifest_dir);
