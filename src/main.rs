@@ -264,6 +264,8 @@ impl Player {
                 self.jump_offset = 0.0;
                 self.jump_direction = true;
             }
+        } else {
+            self.jump_offset = 0.0;
         }
         if self.is_moving() {
             self.move_direction()
