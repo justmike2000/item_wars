@@ -744,7 +744,10 @@ impl GameState {
             loop {
                 if Instant::now() - last_net_update >= Duration::from_millis(NET_MILLIS_PER_UPDATE) {
                     let get_world = GameState::get_world_state(threaded_host.clone(), threaded_player.name.clone(), game_id.clone());
-                    s.send(get_world).unwrap();
+                    match s.send(get_world) {
+                        Ok(_) => (),
+                        Err (_) => (),
+                    }
                     last_net_update = Instant::now();
                 }
             }
