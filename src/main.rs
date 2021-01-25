@@ -643,7 +643,12 @@ impl GameServer {
         });
         let msg = data.to_string();
     
-        let _ = socket.send_to(msg.as_bytes(), host.clone());
+        match socket.send_to(msg.as_bytes(), host.clone()) {
+            Ok(_) => (),
+            Err(e) => {
+                return e.to_string()
+            }
+        }
         //println!("Sent {} awaiting reply...", msg);
     
         if !block {
@@ -883,7 +888,7 @@ fn main() -> GameResult {
                 panic!("Exit");
             } else {
                 let result = GameServer::send_message(server.clone().to_string(),
-                                                           game_id.clone(), player.to_string(), command, "".to_string(), true);
+                                                      game_id.clone(), player.to_string(), command, "".to_string(), true);
                 println!("{}", result);
                 if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>(&result) {
                     if let Some(new_game_id) = result_obj["game_id"].as_str() {
