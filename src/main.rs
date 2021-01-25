@@ -933,7 +933,7 @@ fn main() -> GameResult {
         let check_world_game = GameState::get_world_state(host.clone(), player_name.clone(), game_id.clone());
         if !check_world_game.started {
             for player in check_world_game.players.iter() {
-                if player_name == player_name {
+                if player.name == player_name {
                     panic!("Game already has player of same name!");
                 }
             }
