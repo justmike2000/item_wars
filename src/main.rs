@@ -583,18 +583,18 @@ impl GameServer {
                 let game_id = parsed_request["game_id"].as_str().unwrap_or("");
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
                     if game.players.len() < MAX_PLAYERS {
-                        let player_pos = Position { x: 0.0, y: 0.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
+                        let player_pos = if game.players.len() == 0 {
+                            Position { x: 100.0, y: 250.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT }
+                        } else {
+                            Position { x: 500.0, y: 250.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT }
+                        };
                         let new_player = Player::new(parsed_request["name"].as_str().unwrap_or("").to_string(), player_pos, None);
                         game.players.push(new_player);
                         if game.players.len() == MAX_PLAYERS {
                             println!("Starting game {}", game.session_id);
                             game.started = true;
                         }
-                        let started_string = match game.started {
-                            true => "started",
-                            false => "not started",
-                        };
-                        json!({"info": format!("joined {} game {} with {} players", started_string, game.session_id, game.players.len())})
+                        json!(game)
                     } else {
                         json!({"error": format!("game {:?} is full", game.session_id)})
                     }
@@ -696,10 +696,9 @@ struct GameState {
 
 impl GameState {
 
-    fn join_game(server: String, player: String, game_id: String) {
+    fn join_game(server: String, player: String, game_id: String) -> String {
         let msg = format!("joingame");
-        let result = GameServer::send_message(server, game_id, player, msg, "".to_string(), true);
-        println!("{}", result);
+        GameServer::send_message(server, game_id, player, msg, "".to_string(), true)
     }
 
     fn get_world_state(server: String, player: String, game_id: String) -> NetworkedGame {
@@ -716,18 +715,29 @@ impl GameState {
 
         //let game_server = GameServer::new(host.clone());
         //std::thread::sleep(std::time::Duration::from_millis(1000));
-        GameState::join_game(host.clone(), player_name.clone(), game_id.clone());
+        let result = GameState::join_game(host.clone(), player_name.clone(), game_id.clone());
+        let game_state: NetworkedGame = serde_json::from_str(&result).unwrap();
 
         let mut rng = rand::thread_rng();
-        let player_pos = Position { x: 100.0, y: 100.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
+        let mut player_pos = Position { x: 100.0, y: 100.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
+        let mut opponent_pos = Position { x: 100.0, y: 100.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT };
         let food_pos = Position { x: rng.gen_range(0, SCREEN_SIZE.0 as i16) as f32,
                                            y: rng.gen_range(0, SCREEN_SIZE.1 as i16) as f32,
                                            w: POTION_WIDTH,
                                            h: POTION_HEIGHT };
         let potion_texture = textures.remove("potion").unwrap();
         let player_texture = textures.remove("hero").unwrap();
+        for game_state_player in game_state.players.iter() {
+            if game_state_player.name != player_name.clone() {
+                opponent_pos.x = game_state_player.body.x;
+                opponent_pos.y = game_state_player.body.y;
+            } else {
+                player_pos.x = game_state_player.body.x;
+                player_pos.y = game_state_player.body.y;
+            }
+        }
         let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
-        let opponent = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
+        let opponent = Player::new(player_name.clone(), opponent_pos, Some(player_texture.clone()));
 
         let (s, r) = bounded(1000);
 
