@@ -21,7 +21,7 @@ use clap::{Arg, App};
 use rand::Rng;
 use uuid::Uuid;
 use serde_json::{Result, Value, json, *};
-use crossbeam_channel::unbounded;
+use crossbeam_channel::bounded;
 
 // The first thing we want to do is set up some constants that will help us out later.
 
@@ -52,6 +52,7 @@ const PACKET_SIZE: usize = 1_000;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
+const SEND_POS_MILLIS_PER_UPDATE: u64 = 500;
 const NET_MILLIS_PER_UPDATE: u64 = 20;
 
 const SERVER_PORT: i32 = 7878;
@@ -676,6 +677,7 @@ struct GameState {
     gameover: bool,
     last_draw_update: Instant,
     last_net_update: Instant,
+    last_pos_send: Instant,
     hud: Hud,
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>,
     world_receiver: crossbeam_channel::Receiver<NetworkedGame>,
@@ -716,7 +718,7 @@ impl GameState {
         let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
         let opponent = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
 
-        let (s, r) = unbounded();
+        let (s, r) = bounded(1000);
 
         let game_state = GameState {
             player: player.clone(),
@@ -729,6 +731,7 @@ impl GameState {
             started: false,
             last_draw_update: Instant::now(),
             last_net_update: Instant::now(),
+            last_pos_send: Instant::now(),
             textures,
             world_receiver: r,
         };
@@ -771,9 +774,11 @@ impl event::EventHandler for GameState {
         if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
             if !self.gameover {
                 self.player.update();
-                GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
             }
             self.last_draw_update = Instant::now();
+        }
+        if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) {
+            GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
         }
         if let Ok(world) = self.world_receiver.try_recv() {
             if let Some(opponent) = world.players.iter().find(|p| p.name != self.player.name) {
