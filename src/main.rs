@@ -917,6 +917,12 @@ fn main() -> GameResult {
        Ok(())
     } else {
         let player_name = matches.clone().value_of("player").unwrap_or("Player").to_string();
+        if player_name.len() > 8 {
+            panic!("Player name too long!  max 8 characters");
+        }
+        if !player_name.chars().all(|x| x.is_alphanumeric()) {
+            panic!("Invalid player name character!")
+        }
         let host = matches.clone().value_of("server").unwrap_or("localhost:7878").to_string();
         let game_id = match matches.clone().value_of("game") {
             Some(g ) => g.to_string(),
