@@ -1,26 +1,23 @@
 //! Author: @justmike2000
 //! Repo: https://github.com/justmike2000/item_wars/
 
-use ggez::{event::{KeyCode, KeyMods}, filesystem::{open, resources_dir}};
-use ggez::{event, graphics, Context, GameResult, timer};
+use ggez::{event::{KeyCode, KeyMods}};
+use ggez::{event, graphics, Context, GameResult};
 use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
-use std::{char::MAX, intrinsics::transmute, time::{Duration, Instant}};
+use std::{time::{Duration, Instant}};
 use std::io;
 use std::path;
 use std::env;
 use std::collections::HashMap;
-use std::io::prelude::*;
-use std::net::{UdpSocket, ToSocketAddrs};
-use std::io::{Read, Write};
-use std::str::from_utf8;
+use std::net::UdpSocket;
 
 use serde::{Deserialize, Serialize};
-use clap::{Arg, App};
+use clap::App;
 use rand::Rng;
 use uuid::Uuid;
-use serde_json::{Result, Value, json, *};
+use serde_json::*;
 use crossbeam_channel::bounded;
 
 // The first thing we want to do is set up some constants that will help us out later.
@@ -54,9 +51,6 @@ const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 const SEND_POS_MILLIS_PER_UPDATE: u64 = 500;
 const NET_MILLIS_PER_UPDATE: u64 = 20;
-
-const SERVER_PORT: i32 = 7878;
-const SEND_PORT: i32 = 0;
 
 #[derive(PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 struct Position {
@@ -527,8 +521,7 @@ impl GameServer {
     }
 
     fn host(&mut self) {
-        let addr = format!("{}:{}", self.hostname.clone(), SERVER_PORT); 
-        let listener = UdpSocket::bind(addr).unwrap();
+        let listener = UdpSocket::bind(self.hostname.clone()).unwrap();
         listener.set_nonblocking(true).unwrap();
         listener.set_broadcast(true).unwrap();
         listener.set_read_timeout(Some(Duration::new(5, 0))).unwrap();
@@ -540,14 +533,14 @@ impl GameServer {
                    let request = String::from_utf8_lossy(&buf[..]);
                    self.handle_connection(request.to_string(), amt, src.to_string(), &listener);
                },
-               Err(e) => {
+               Err(_e) => {
                    //println!("couldn't recieve a datagram: {}", e);
                }
            }
         }
     }
 
-    fn handle_connection(&mut self, mut request: String, amt: usize, dst: String, socket: &UdpSocket) {
+    fn handle_connection(&mut self, request: String, amt: usize, dst: String, socket: &UdpSocket) {
         let parsed_request: serde_json::Value = match serde_json::from_str(&request[..amt]) {
             Ok(r) => r,
             Err(e) => {
@@ -631,11 +624,11 @@ impl GameServer {
                 })
             }
         };
-        socket.send_to(data.to_string().as_bytes(), dst.clone());
+        let _ = socket.send_to(data.to_string().as_bytes(), dst.clone());
     }
 
-    fn send_message(host: String, game_id: String, player: String, msg: String, meta: String) -> String {
-        let addr = format!("{}:{}", "0.0.0.0", SEND_PORT);
+    fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> String {
+        let addr = format!("0.0.0.0:0");
         let socket = UdpSocket::bind(addr).unwrap();
 
         //println!("Successfully connected to server {}", host);
@@ -648,10 +641,12 @@ impl GameServer {
         });
         let msg = data.to_string();
     
-        let server = format!("{}:{}", host.clone(), SERVER_PORT);
-        socket.send_to(msg.as_bytes(), server);
+        let _ = socket.send_to(msg.as_bytes(), host.clone());
         //println!("Sent {} awaiting reply...", msg);
     
+        if !block {
+            return "".to_string()
+        }
         let mut data = [0 as u8; PACKET_SIZE]; 
         match socket.recv_from(&mut data) {
             Ok((amt, _)) => String::from_utf8_lossy(&data)[0..amt].to_string(),
@@ -659,10 +654,6 @@ impl GameServer {
                 format!("Failed to connect: {}", e)
             }
         }
-    }
-
-    fn new_game() -> NetworkedGame {
-        NetworkedGame::new()
     }
 }
 
@@ -687,23 +678,23 @@ impl GameState {
 
     fn join_game(server: String, player: String, game_id: String) {
         let msg = format!("joingame");
-        let result = GameServer::send_message(server, game_id, player, msg, "".to_string());
+        let result = GameServer::send_message(server, game_id, player, msg, "".to_string(), true);
         println!("{}", result);
     }
 
     fn get_world_state(server: String, player: String, game_id: String) -> NetworkedGame {
         let msg = format!("getworld");
-        let result = GameServer::send_message(server, game_id, player, msg, "".to_string());
+        let result = GameServer::send_message(server, game_id, player, msg, "".to_string(), true);
         serde_json::from_str(&result).unwrap()
     }
 
     fn send_position(server: String, player: Player, game_id: String) {
-        GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(player).to_string());
+        GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(player).to_string(), false);
     }
 
     pub fn new<'a>(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
-        let game_server = GameServer::new(host.clone());
+        //let game_server = GameServer::new(host.clone());
         //std::thread::sleep(std::time::Duration::from_millis(1000));
         GameState::join_game(host.clone(), player_name.clone(), game_id.clone());
 
@@ -871,7 +862,6 @@ fn main() -> GameResult {
         });
         let mut server_input = String::new();
         println!("Started Item Wars Server on {}", server);
-        let mut current_games: Vec<NetworkedGame> = vec![];
         let mut player = "".to_string();
         let mut game_id = "".to_string();
         loop {
@@ -891,9 +881,9 @@ fn main() -> GameResult {
                 panic!("Exit");
             } else {
                 let result = GameServer::send_message(server.clone().to_string(),
-                                                           game_id.clone(), player.to_string(), command, "".to_string());
+                                                           game_id.clone(), player.to_string(), command, "".to_string(), true);
                 println!("{}", result);
-                if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>((&result)) {
+                if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>(&result) {
                     if let Some(new_game_id) = result_obj["game_id"].as_str() {
                         game_id = new_game_id.to_string();
                         println!("Game ID set to {}", game_id);
@@ -901,9 +891,8 @@ fn main() -> GameResult {
                 }
             }
         }
-        Ok(())
     } else if let Some(list) = matches.clone().value_of("list") {
-       let games = GameServer::send_message(list.clone().to_string(), "".to_string(), "".to_string(), "listgames".to_string(), "".to_string());
+       let games = GameServer::send_message(list.clone().to_string(), "".to_string(), "".to_string(), "listgames".to_string(), "".to_string(), true);
        println!("{:?}", games);
        Ok(())
     } else {
