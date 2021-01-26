@@ -7,11 +7,12 @@ use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
 use std::{time::{Duration, Instant}};
-use std::io;
 use std::path;
 use std::env;
 use std::collections::HashMap;
-use std::net::UdpSocket;
+use std::io::{self, Read};
+use std::io::prelude::*;
+use std::net::{TcpStream, TcpListener};
 
 use serde::{Deserialize, Serialize};
 use clap::App;
@@ -43,14 +44,13 @@ const POTION_HEIGHT: f32 = 42.0;
 
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
-const PACKET_SIZE: usize = 1_000;
-
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 const SEND_POS_MILLIS_PER_UPDATE: u64 = 500;
 const NET_MILLIS_PER_UPDATE: u64 = 20;
 const NET_GAME_START_CHECK_MILLIS: u64 = 100;
 const NET_GAME_READY_CHECK: u64 = 50;
+const PACKET_SIZE: usize = 56_000;
 
 const MAX_LAG: u128 = 500;
 
@@ -527,27 +527,33 @@ impl GameServer {
     }
 
     fn host(&mut self) {
-        let listener = UdpSocket::bind(self.hostname.clone()).unwrap();
-        listener.set_nonblocking(true).unwrap();
-        listener.set_broadcast(true).unwrap();
-        listener.set_read_timeout(Some(Duration::new(5, 0))).unwrap();
+        let listener = TcpListener::bind(self.hostname.clone()).unwrap();
 
-        let mut buf = [0; PACKET_SIZE];
         loop {
-           match listener.recv_from(&mut buf) {
-               Ok((amt, src)) => {
-                   let request = String::from_utf8_lossy(&buf[..]);
-                   self.handle_connection(request.to_string(), amt, src.to_string(), &listener);
-               },
-               Err(_e) => {
-                   //println!("couldn't recieve a datagram: {}", e);
-               }
+            for stream in listener.incoming() {
+               match stream {
+                   Ok(mut stream_result) => {
+                       let mut buf = [0; PACKET_SIZE];
+                       match stream_result.read(&mut buf) {
+                           Ok(size) => {
+                               let request = String::from_utf8_lossy(&mut buf[0..size]);
+                               self.handle_connection(request.to_string(), &mut stream_result);
+                           },
+                           Err(_) => {
+
+                           }
+                       }
+                   },
+                   Err(e) => {
+                       println!("couldn't recieve: {}", e);
+                   }
+                }
            }
         }
     }
 
-    fn handle_connection(&mut self, request: String, amt: usize, dst: String, socket: &UdpSocket) {
-        let parsed_request: serde_json::Value = match serde_json::from_str(&request[..amt]) {
+    fn handle_connection(&mut self, request: String, socket: &mut TcpStream) {
+        let parsed_request: serde_json::Value = match serde_json::from_str(&request) {
             Ok(r) => r,
             Err(e) => {
                 println!("Invalid request {} - {}", request, e);
@@ -647,12 +653,12 @@ impl GameServer {
                 })
             }
         };
-        let _ = socket.send_to(data.to_string().as_bytes(), dst.clone());
+        let _ = socket.write_all(data.to_string().as_bytes()).unwrap();
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> String {
-        let addr = format!("0.0.0.0:0");
-        let socket = UdpSocket::bind(addr).unwrap();
+        let mut socket = TcpStream::connect(host.clone()).unwrap();
+        socket.set_nonblocking(!block).unwrap();
 
         //println!("Successfully connected to server {}", host);
     
@@ -666,7 +672,7 @@ impl GameServer {
         });
         let msg = data.to_string();
     
-        match socket.send_to(msg.as_bytes(), host.clone()) {
+        match socket.write_all(msg.as_bytes()) {
             Ok(_) => (),
             Err(e) => {
                 return e.to_string()
@@ -677,9 +683,9 @@ impl GameServer {
         if !block {
             return "".to_string()
         }
-        let mut data = [0 as u8; PACKET_SIZE]; 
-        match socket.recv_from(&mut data) {
-            Ok((amt, _)) => String::from_utf8_lossy(&data)[0..amt].to_string(),
+        let mut buf = [0; PACKET_SIZE];
+        match socket.read(&mut buf) {
+            Ok(size) => String::from_utf8_lossy(&buf[0..size]).to_string(),
             Err(e) => {
                 format!("Failed to connect: {}", e)
             }
@@ -718,10 +724,16 @@ impl GameState {
         GameServer::send_message(server, game_id, player, msg, "".to_string(), true)
     }
 
-    fn get_world_state(server: String, player: String, game_id: String) -> NetworkedGame {
+    fn get_world_state(server: String, player: String, game_id: String) -> Option<NetworkedGame> {
         let msg = format!("getworld");
         let result = GameServer::send_message(server, game_id, player, msg, "".to_string(), true);
-        serde_json::from_str(&result).unwrap()
+        match serde_json::from_str(&result) {
+            Ok(r) => Some(r),
+            Err(e) => {
+                println!("Error in getting world: {} {}", e, result);
+                None
+            }
+        }
     }
 
     fn send_position(server: String, player: Player, game_id: String) {
@@ -783,7 +795,7 @@ impl GameState {
             let mut last_net_update = Instant::now();
             loop {
                 if Instant::now() - last_net_update >= Duration::from_millis(NET_MILLIS_PER_UPDATE) {
-                    let get_world = GameState::get_world_state(threaded_host.clone(), threaded_player.name.clone(), game_id.clone());
+                    let get_world = GameState::get_world_state(threaded_host.clone(), threaded_player.name.clone(), game_id.clone()).unwrap();
                     match s.send(get_world) {
                         Ok(_) => (),
                         Err (_) => (),
@@ -800,7 +812,7 @@ impl event::EventHandler for GameState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         if !self.started {
             if Instant::now() - self.last_net_update >= Duration::from_millis(NET_GAME_START_CHECK_MILLIS) {
-                let get_world = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone());
+                let get_world = GameState::get_world_state(self.server.clone(), self.player.name.clone(), self.game_id.clone()).unwrap();
                 if !get_world.started {
                     println!("Waiting for game {} to start...", self.game_id.clone());
                     self.last_net_update = Instant::now();
@@ -862,12 +874,14 @@ impl event::EventHandler for GameState {
 
         // <TODO Load Map> //
 
-        // Then we tell the player and the items to draw themselves
-        self.player.draw(ctx)?;
-        self.opponent.draw(ctx)?;
-        //self.food.draw(ctx)?;
-        self.hud.draw(ctx, &self.player)?;
-
+        if self.ready {
+            // Then we tell the player and the items to draw themselves
+            self.player.draw(ctx)?;
+            self.opponent.draw(ctx)?;
+            //self.food.draw(ctx)?;
+            self.hud.draw(ctx, &self.player)?;
+        }
+         
         graphics::present(ctx)?;
         ggez::timer::yield_now();
         Ok(())
@@ -980,7 +994,7 @@ fn main() -> GameResult {
                 panic!("Please provide gameid.")
             },
         };
-        let check_world_game = GameState::get_world_state(host.clone(), player_name.clone(), game_id.clone());
+        let check_world_game = GameState::get_world_state(host.clone(), player_name.clone(), game_id.clone()).unwrap();
         if !check_world_game.started {
             for player in check_world_game.players.iter() {
                 if player.name == player_name {
