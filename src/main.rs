@@ -50,6 +50,7 @@ const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
 const SEND_POS_MILLIS_PER_UPDATE: u64 = 500;
 const NET_MILLIS_PER_UPDATE: u64 = 20;
 const NET_GAME_START_CHECK_MILLIS: u64 = 100;
+const NET_GAME_READY_CHECK: u64 = 50;
 
 const MAX_LAG: u128 = 500;
 
@@ -157,6 +158,7 @@ struct Player {
     current_accel: f32,
     jumping: bool,
     jump_offset: f32,
+    ready: bool,
     jump_direction: bool, // true up false down
     #[serde(skip_serializing, skip_deserializing)]
     texture: Option<ImageGeneric<GlBackendSpec>>,
@@ -185,6 +187,7 @@ impl Player {
             jumping: false,
             jump_offset: 0.0,
             jump_direction: true,
+            ready: false,
             animation_frame: 0.0,
             animation_total_frames: 4.0,
             last_animation: Some(std::time::Instant::now()),
@@ -602,10 +605,17 @@ impl GameServer {
                     json!({"error": format!("Invalid Game {}", game_id)})
                 }
             },
-            Some("gameinfo") => {
+            Some("ready") => {
+                let player_name = parsed_request["name"].as_str().unwrap_or("");
                 let game_id = parsed_request["game_id"].as_str().unwrap_or("");
-                if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                    json!({"game": vec![game.session_id.clone(), game.players.len().to_string()]})
+                if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
+                    for player in  game.players.iter_mut() {
+                        if player.name == player_name {
+                            player.ready = true;
+                        }
+                    }
+                    let ready = game.players.iter().filter(|p| p.ready).cloned().collect::<Vec<Player>>().len() == 2;
+                    json!({"ready": ready})
                 } else {
                     json!({"error": format!("Invalid Game {}", game_id)})
                 }
@@ -685,10 +695,12 @@ struct GameState {
     server: String,
     game_id: String,
     started: bool,
+    ready: bool,
     gameover: bool,
     last_draw_update: Instant,
     last_net_update: Instant,
     last_pos_send: Instant,
+    last_ready_check: Instant,
     hud: Hud,
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>,
     world_receiver: crossbeam_channel::Receiver<NetworkedGame>,
@@ -698,6 +710,11 @@ impl GameState {
 
     fn join_game(server: String, player: String, game_id: String) -> String {
         let msg = format!("joingame");
+        GameServer::send_message(server, game_id, player, msg, "".to_string(), true)
+    }
+
+    fn send_ready(server: String, player: String, game_id: String) -> String {
+        let msg = format!("ready");
         GameServer::send_message(server, game_id, player, msg, "".to_string(), true)
     }
 
@@ -753,6 +770,8 @@ impl GameState {
             last_draw_update: Instant::now(),
             last_net_update: Instant::now(),
             last_pos_send: Instant::now(),
+            last_ready_check: Instant::now(),
+            ready: false,
             textures,
             world_receiver: r,
         };
@@ -795,15 +814,7 @@ impl event::EventHandler for GameState {
             }
         } 
 
-        if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
-            if !self.gameover {
-                self.player.update();
-            }
-            self.last_draw_update = Instant::now();
-        }
-        if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) {
-            GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
-        }
+        // Get opponent
         if let Ok(world) = self.world_receiver.try_recv() {
             if let Some(opponent) = world.players.iter().find(|p| p.name != self.player.name) {
                 self.opponent.name = opponent.name.clone();
@@ -813,6 +824,32 @@ impl event::EventHandler for GameState {
                 self.opponent.jumping = opponent.jumping;
                 self.opponent.update();
                 }
+        }
+
+        // Countdown till all players read
+        if !self.ready && Instant::now() - self.last_ready_check >= Duration::from_millis(NET_GAME_READY_CHECK) {
+            let ready_result: serde_json::Value = serde_json::from_str(&GameState::send_ready(self.server.clone(), self.player.name.clone(), self.game_id.clone())).unwrap();
+            if let Some(ready) = ready_result["ready"].as_bool() {
+                self.ready = ready;
+                if ready {
+                    println!("Game ready!");
+                }
+                return Ok(())
+            }
+            self.last_ready_check = Instant::now();
+            return Ok(())
+        } else if !self.ready {
+            return Ok(())
+        }
+
+        if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
+            if !self.gameover {
+                self.player.update();
+            }
+            self.last_draw_update = Instant::now();
+        }
+        if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) {
+            GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
         }
         Ok(())
     }
@@ -828,9 +865,8 @@ impl event::EventHandler for GameState {
         // Then we tell the player and the items to draw themselves
         self.player.draw(ctx)?;
         self.opponent.draw(ctx)?;
-        self.food.draw(ctx)?;
+        //self.food.draw(ctx)?;
         self.hud.draw(ctx, &self.player)?;
-
 
         graphics::present(ctx)?;
         ggez::timer::yield_now();
@@ -866,7 +902,11 @@ impl event::EventHandler for GameState {
             KeyCode::D => self.player.dir.right = true,
             KeyCode::W => self.player.dir.up = true,
             KeyCode::S => self.player.dir.down = true,
-            KeyCode::Space => self.player.jumping = true,
+            KeyCode::Space => {
+                if !self.player.jumping {
+                    self.player.jumping = true
+                }
+            },
             _ => ()
         };
     }
