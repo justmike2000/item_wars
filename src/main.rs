@@ -513,7 +513,6 @@ impl NetworkedGame {
 }
 
 pub struct GameServer {
-    connection: TcpStream,
     hostname: String,
     games: Vec<NetworkedGame>,
 }
@@ -521,9 +520,7 @@ pub struct GameServer {
 impl GameServer {
 
     fn new(hostname: String) -> GameServer {
-        let socket = TcpStream::connect(hostname.clone()).unwrap();
         GameServer {
-            connection: socket,
             hostname,
             games: vec![],
         }
@@ -659,9 +656,9 @@ impl GameServer {
         let _ = socket.write_all(data.to_string().as_bytes()).unwrap();
     }
 
-    fn send_message(&mut self, game_id: String, player: String, msg: String, meta: String, block: bool) -> String {
-        //let mut socket = TcpStream::connect(host.clone()).unwrap();
-        //socket.set_nonblocking(!block).unwrap();
+    fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> String {
+        let mut socket = TcpStream::connect(host.clone()).unwrap();
+        socket.set_nonblocking(!block).unwrap();
 
         //println!("Successfully connected to server {}", host);
     
@@ -675,7 +672,7 @@ impl GameServer {
         });
         let msg = data.to_string();
     
-        match self.connection.write_all(msg.as_bytes()) {
+        match socket.write_all(msg.as_bytes()) {
             Ok(_) => (),
             Err(e) => {
                 return e.to_string()
@@ -687,7 +684,7 @@ impl GameServer {
             return "".to_string()
         }
         let mut buf = [0; PACKET_SIZE];
-        match self.connection.read(&mut buf) {
+        match socket.read(&mut buf) {
             Ok(size) => String::from_utf8_lossy(&buf[0..size]).to_string(),
             Err(e) => {
                 format!("Failed to connect: {}", e)
@@ -717,9 +714,9 @@ struct GameState {
 
 impl GameState {
 
-    fn join_game(&mut self, player: String, game_id: String) -> String {
+    fn join_game(host: String, player: String, game_id: String) -> String {
         let msg = format!("joingame");
-        self.send_message(game_id, player, msg, "".to_string(), true)
+        GameServer::send_message(host, game_id, player, msg, "".to_string(), true)
     }
 
     fn send_ready(server: String, player: String, game_id: String) -> String {
