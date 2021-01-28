@@ -46,11 +46,11 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
-const SEND_POS_MILLIS_PER_UPDATE: u64 = 500;
-const NET_MILLIS_PER_UPDATE: u64 = 20;
-const NET_GAME_START_CHECK_MILLIS: u64 = 100;
-const NET_GAME_READY_CHECK: u64 = 50;
-const PACKET_SIZE: usize = 56_000;
+const SEND_POS_MILLIS_PER_UPDATE: u64 = UPDATES_PER_SECOND as u64;
+const NET_MILLIS_PER_UPDATE: u64 = UPDATES_PER_SECOND as u64;
+const NET_GAME_START_CHECK_MILLIS: u64 = 500;
+const NET_GAME_READY_CHECK: u64 = 100;
+const PACKET_SIZE: usize = 5_000;
 
 const MAX_LAG: u128 = 500;
 
@@ -768,7 +768,7 @@ impl GameState {
         let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
         let opponent = Player::new(player_name.clone(), opponent_pos, Some(player_texture.clone()));
 
-        let (s, r) = bounded(1000);
+        let (s, r) = bounded(10000);
 
         let game_state = GameState {
             player: player.clone(),
