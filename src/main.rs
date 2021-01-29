@@ -964,7 +964,8 @@ fn main() -> GameResult {
             } else if command == "exit" {
                 panic!("Exit");
             } else {
-                let result = GameServer::send_message(server.clone().to_string(),
+                let local_server = "localhost:7878".to_string();
+                let result = GameServer::send_message(local_server,
                                                       game_id.clone(), player.to_string(), command, "".to_string(), true);
                 println!("{}", result);
                 if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>(&result) {
