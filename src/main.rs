@@ -50,7 +50,7 @@ const SEND_POS_MILLIS_PER_UPDATE: u64 = 100;
 const NET_MILLIS_PER_UPDATE: u64 = 100;
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
-const PACKET_SIZE: usize = 5_000;
+const JSON_PACKET_SIZE: usize = 5_000;
 
 const MAX_LAG: u128 = 500;
 
@@ -80,6 +80,34 @@ struct Direction {
     down: bool,
     left: bool,
     right: bool,
+}
+
+impl From<Direction> for f32 {
+    fn from(dir: Direction) -> f32 {
+        if dir.up {
+            return 0.0
+        } else if dir.down {
+            return 1.0
+        } else if dir.left {
+            return 2.0
+        } else {
+            return 3.0
+        }
+    }
+}
+
+impl From<f32> for Direction {
+    fn from(item: f32) -> Self {
+        if item == 0.0 {
+            Direction { up: true, down: false, left: false, right: false }
+        } else if item == 1.0 {
+            Direction { up: false, down: true, left: false, right: false }
+        } else if item == 2.0 {
+            Direction { up: false, down: false, left: true, right: false }
+        } else {
+            Direction { up: false, down: false, left: false, right: true }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -533,7 +561,7 @@ impl GameServer {
             for stream in listener.incoming() {
                match stream {
                    Ok(mut stream_result) => {
-                       let mut buf = [0; PACKET_SIZE];
+                       let mut buf = [0; JSON_PACKET_SIZE];
                        match stream_result.read(&mut buf) {
                            Ok(size) => {
                                let request = String::from_utf8_lossy(&mut buf[0..size]);
@@ -631,14 +659,34 @@ impl GameServer {
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
                     let name = parsed_request["name"].as_str().unwrap_or("");
                     if let Some(player) = game.players.iter_mut().find(|p| &p.name == name) {
-                        let update_player: Player = serde_json::from_str::<Player>(parsed_request["meta"].as_str().unwrap()).unwrap();
-                        *player = update_player;
+                        let update_player: Vec<f32> = serde_json::from_str(parsed_request["meta"].as_str().unwrap()).unwrap();
+                        //*player = update_player;
+                        player.body.x = update_player[0];
+                        player.body.y = update_player[1];
+                        player.dir = Direction::from(update_player[2]);
+                        player.jumping = update_player[3] != 0.0;
+                        player.animation_frame = update_player[4];
+                        player.last_dir = Direction::from(update_player[5]);
                     }
-                    json!(game)
+                    return
+                    // json!(game)
                 } else {
                     json!({"error": format!("Invalid Game {}", game_id)})
                 }
             },
+            Some("getopponent") => {
+                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+                let name = parsed_request["name"].as_str().unwrap_or("");
+                if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+                    if let Some(player) = game.players.iter().find(|p| p.name != name) {
+                        json!({"opponent": vec![player.body.x, player.body.y, player.dir.clone().into(), player.jumping as usize as f32, 0.0, 0.0]})
+                    } else {
+                       json!({"error": format!("Invalid Player {}", name)})
+                    }
+                } else {
+                    json!({"error": format!("Invalid Game {}", game_id)})
+                }
+            }
             Some("getworld") => {
                 let game_id = parsed_request["game_id"].as_str().unwrap_or("");
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
@@ -683,7 +731,7 @@ impl GameServer {
         if !block {
             return "".to_string()
         }
-        let mut buf = [0; PACKET_SIZE];
+        let mut buf = [0; JSON_PACKET_SIZE];
         match socket.read(&mut buf) {
             Ok(size) => String::from_utf8_lossy(&buf[0..size]).to_string(),
             Err(e) => {
@@ -709,7 +757,7 @@ struct GameState {
     last_ready_check: Instant,
     hud: Hud,
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>,
-    world_receiver: crossbeam_channel::Receiver<NetworkedGame>,
+    player_receiver: crossbeam_channel::Receiver<Vec<f32>>,
 }
 
 impl GameState {
@@ -722,6 +770,18 @@ impl GameState {
     fn send_ready(server: String, player: String, game_id: String) -> String {
         let msg = format!("ready");
         GameServer::send_message(server, game_id, player, msg, "".to_string(), true)
+    }
+
+    fn get_opponent(server: String, player: String, game_id: String) -> Option<Vec<f32>> {
+        let result = GameServer::send_message(server, game_id, player, "getopponent".to_string(), "".to_string(), true);
+        let opponent: serde_json::Value = serde_json::from_str(&result).unwrap();
+        if let Some(opponent_array) = opponent["opponent"].as_array() {
+            let opponent_vec: Vec<f32> = opponent_array.iter().map(|p| p.as_f64().unwrap() as f32 ).collect();
+            return Some(opponent_vec);
+       
+        } else {
+            None
+        }
     }
 
     fn get_world_state(server: String, player: String, game_id: String) -> Option<NetworkedGame> {
@@ -737,7 +797,8 @@ impl GameState {
     }
 
     fn send_position(server: String, player: Player, game_id: String) {
-        GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(player).to_string(), false);
+        let meta_position = vec![player.body.x, player.body.y, player.dir.into(), player.jumping as u8 as f32, player.animation_frame, player.last_dir.into()];
+        GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(meta_position).to_string(), false);
     }
 
     pub fn new<'a>(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
@@ -785,7 +846,7 @@ impl GameState {
             last_ready_check: Instant::now(),
             ready: false,
             textures,
-            world_receiver: r,
+            player_receiver: r,
         };
 
         let threaded_host = host.clone();
@@ -795,10 +856,13 @@ impl GameState {
             let mut last_net_update = Instant::now();
             loop {
                 if Instant::now() - last_net_update >= Duration::from_millis(NET_MILLIS_PER_UPDATE) {
-                    let get_world = GameState::get_world_state(threaded_host.clone(), threaded_player.name.clone(), game_id.clone()).unwrap();
-                    match s.send(get_world) {
-                        Ok(_) => (),
-                        Err (_) => (),
+                   
+                    //let get_world = GameState::get_world_state(threaded_host.clone(), threaded_player.name.clone(), game_id.clone()).unwrap();
+                    if let Some(opponent) = GameState::get_opponent(threaded_host.clone(), threaded_player.name.clone(), game_id.clone()) {
+                        match s.send(opponent) {
+                            Ok(_) => (),
+                            Err (_) => (),
+                        }
                     }
                     last_net_update = Instant::now();
                 }
@@ -827,15 +891,18 @@ impl event::EventHandler for GameState {
         } 
 
         // Get opponent
-        if let Ok(world) = self.world_receiver.try_recv() {
-            if let Some(opponent) = world.players.iter().find(|p| p.name != self.player.name) {
-                self.opponent.name = opponent.name.clone();
-                self.opponent.body = opponent.body;
-                self.opponent.dir = opponent.dir.clone();
-                self.opponent.last_dir = opponent.last_dir.clone();
-                self.opponent.jumping = opponent.jumping;
-                self.opponent.update();
-                }
+        if let Ok(net_opponent) = self.player_receiver.try_recv() {
+            //self.opponent.name = opponent.name.clone();
+            self.opponent.body.x = net_opponent[0];
+            self.opponent.body.y = net_opponent[1];
+            self.opponent.dir = Direction::from(net_opponent[2]);
+            self.opponent.jumping = net_opponent[3] != 0.0;
+            //self.opponent.dir = opponent.dir.clone();
+            //self.opponent.body = opponent.body;
+            //self.opponent.dir = opponent.dir.clone();
+            //self.opponent.last_dir = opponent.last_dir.clone();
+            //self.opponent.jumping = opponent.jumping;
+            self.opponent.update();
         }
 
         // Countdown till all players read
@@ -964,8 +1031,7 @@ fn main() -> GameResult {
             } else if command == "exit" {
                 panic!("Exit");
             } else {
-                let local_server = "localhost:7878".to_string();
-                let result = GameServer::send_message(local_server,
+                let result = GameServer::send_message(server.clone().to_string(),
                                                       game_id.clone(), player.to_string(), command, "".to_string(), true);
                 println!("{}", result);
                 if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>(&result) {
