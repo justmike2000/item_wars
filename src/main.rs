@@ -46,7 +46,7 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
-const SEND_POS_MILLIS_PER_UPDATE: u64 = 1000;
+const SEND_POS_MILLIS_PER_UPDATE: u64 = 100;
 const NET_MILLIS_PER_UPDATE: u64 = 100;
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
@@ -927,8 +927,9 @@ impl event::EventHandler for GameState {
             }
             self.last_draw_update = Instant::now();
         }
-        if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) {
+        if self.player.is_moving() && Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) {
             GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
+            self.last_pos_send = Instant::now();
         }
         Ok(())
     }
