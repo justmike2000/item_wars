@@ -829,7 +829,7 @@ impl GameState {
         let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
         let opponent = Player::new(player_name.clone(), opponent_pos, Some(player_texture.clone()));
 
-        let (s, r) = bounded(10000);
+        let (s, r) = bounded(1);
 
         let game_state = GameState {
             player: player.clone(),
