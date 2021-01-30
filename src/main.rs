@@ -589,15 +589,15 @@ impl GameServer {
             }
         };
         //println!("Received request: {}", request);
-        let packet_time: u128 = parsed_request["time"].as_str().unwrap().parse::<u128>().unwrap();
-        //println!("{}", packet_time);
+        //let packet_time: u128 = parsed_request["time"].as_str().unwrap().parse::<u128>().unwrap();
+        ////println!("{}", packet_time);
 
-        let epoch_time: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
+        //let epoch_time: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
 
-        if packet_time + MAX_LAG < epoch_time ||
-            packet_time - MAX_LAG > epoch_time {
-                return
-        }
+        //if packet_time + MAX_LAG < epoch_time ||
+        //    packet_time - MAX_LAG > epoch_time {
+        //        return
+        //}
 
 
         let data = match parsed_request["command"].as_str() {
@@ -716,7 +716,7 @@ impl GameServer {
             "name": player.clone(),
             "command": msg.clone(),
             "meta": meta.clone(),
-            "time": epoch_time,
+            //"time": epoch_time,
         });
         let msg = data.to_string();
     
