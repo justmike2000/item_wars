@@ -47,8 +47,8 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
-const SEND_POS_MILLIS_PER_UPDATE: u64 = 300;
-const NET_MILLIS_PER_UPDATE: u64 = 10;
+const SEND_POS_MILLIS_PER_UPDATE: u64 = 33;
+const NET_MILLIS_PER_UPDATE: u64 = 33;
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
 const JSON_PACKET_SIZE: usize = 5_000;
@@ -963,8 +963,8 @@ impl event::EventHandler for GameState {
 
         if self.ready {
             // Then we tell the player and the items to draw themselves
-            self.player.draw(ctx)?;
             self.opponent.draw(ctx)?;
+            self.player.draw(ctx)?;
             //self.food.draw(ctx)?;
             self.hud.draw(ctx, &self.player)?;
         }
