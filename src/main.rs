@@ -777,6 +777,7 @@ struct GameState {
     hud: Hud,
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>,
     player_receiver: crossbeam_channel::Receiver<Vec<f32>>,
+    player_pos_sender: crossbeam_channel::Sender<Player>,
 }
 
 impl GameState {
@@ -849,6 +850,7 @@ impl GameState {
         let opponent = Player::new(player_name.clone(), opponent_pos, Some(player_texture.clone()));
 
         let (s, r) = bounded(1);
+        let (player_pos_sender, player_pos_receiver) = bounded(1);
 
         let game_state = GameState {
             player: player.clone(),
@@ -866,11 +868,26 @@ impl GameState {
             ready: false,
             textures,
             player_receiver: r,
+            player_pos_sender: player_pos_sender,
         };
 
+        let threaded_host_pos = host.clone();
+        let threaded_game_id = game_id.clone();
         let threaded_host = host.clone();
         let threaded_player = player.clone();
 
+        std::thread::spawn(move || {
+            loop {
+                match player_pos_receiver.recv() {
+                    Ok(msg) => {
+                        GameState::send_position(threaded_host_pos.clone(), msg.clone(), threaded_game_id.clone());
+                    },
+                    Err(_e_) => {
+
+                    }
+                }
+            }
+        });
         std::thread::spawn(move || {
             let mut last_net_update = Instant::now();
             loop {
@@ -940,6 +957,7 @@ impl event::EventHandler for GameState {
             return Ok(())
         }
 
+        // Send pos
         if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
             if !self.gameover {
                 self.player.update();
@@ -947,7 +965,8 @@ impl event::EventHandler for GameState {
             self.last_draw_update = Instant::now();
         }
         if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) {
-            GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
+            self.player_pos_sender.send(self.player.clone());
+            //GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
             self.last_pos_send = Instant::now();
         }
         Ok(())
