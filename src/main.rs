@@ -47,10 +47,13 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
-const SEND_POS_MILLIS_PER_UPDATE: u64 = 33;
-const NET_MILLIS_PER_UPDATE: u64 = 33;
+const SEND_POS_MILLIS_PER_UPDATE: u64 = 50; // 50 = 20 ticks per sec
+const NET_MILLIS_PER_UPDATE: u64 = 50; // 20 ticks
+
+// checks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
+
 const JSON_PACKET_SIZE: usize = 5_000;
 
 const MAX_LAG: u128 = 500;
@@ -723,7 +726,6 @@ impl GameServer {
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> String {
         let mut socket = TcpStream::connect(host.clone()).unwrap();
-        socket.set_nonblocking(!block).unwrap();
 
         //println!("Successfully connected to server {}", host);
     
@@ -939,6 +941,8 @@ impl event::EventHandler for GameState {
             //self.opponent.last_dir = opponent.last_dir.clone();
             //self.opponent.jumping = opponent.jumping;
             self.opponent.update();
+        } else {
+            // Try interpoliation
         }
 
         // Countdown till all players read
