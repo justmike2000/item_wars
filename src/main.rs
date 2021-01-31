@@ -47,8 +47,8 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
-const SEND_POS_MILLIS_PER_UPDATE: u64 = DRAW_MILLIS_PER_UPDATE;
-const NET_MILLIS_PER_UPDATE: u64 = DRAW_MILLIS_PER_UPDATE;
+const SEND_POS_MILLIS_PER_UPDATE: u64 = 300;
+const NET_MILLIS_PER_UPDATE: u64 = 10;
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
 const JSON_PACKET_SIZE: usize = 5_000;
@@ -528,12 +528,12 @@ pub struct NetworkedGame {
 
 impl NetworkedGame {
 
-    pub fn new() -> NetworkedGame {
-        let my_uuid = Uuid::new_v4().to_string();
+    pub fn new(game_id: String) -> NetworkedGame {
+        //let my_uuid = Uuid::new_v4().to_string();
 
         NetworkedGame {
             players: vec![],
-            session_id: my_uuid,
+            session_id: game_id,
             started: false,
             completed: false
         }
@@ -544,6 +544,7 @@ impl NetworkedGame {
 pub struct GameServer {
     hostname: String,
     games: Vec<NetworkedGame>,
+    game_count: String,
 }
 
 impl GameServer {
@@ -552,6 +553,7 @@ impl GameServer {
         GameServer {
             hostname,
             games: vec![],
+            game_count: "0".to_string(),
         }
     }
 
@@ -582,6 +584,8 @@ impl GameServer {
     }
 
     fn handle_connection(&mut self, request: String, socket: &mut TcpStream) {
+        println!("SIZE: {}", request.len());
+        println!("REQUEST: {:?}", request);
         //let parsed_request: serde_json::Value = match serde_json::from_str(&request) {
         //    Ok(r) => r,
         //    Err(e) => {
@@ -608,7 +612,10 @@ impl GameServer {
         //let data = match parsed_request["command"].as_str() {
         match command {
             "newgame" => {
-                let game = NetworkedGame::new();
+                let mut count = self.game_count.parse::<i32>().unwrap();
+                count += 1;
+                self.game_count = count.to_string();
+                let game = NetworkedGame::new(self.game_count.clone());
                 self.games.push(game.clone());
                 let _ = socket.write_all(game.session_id.as_bytes());
             },
