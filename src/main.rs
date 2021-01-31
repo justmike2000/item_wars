@@ -20,6 +20,7 @@ use rand::Rng;
 use uuid::Uuid;
 use serde_json::*;
 use crossbeam_channel::bounded;
+use bytes::Bytes;
 
 // The first thing we want to do is set up some constants that will help us out later.
 
@@ -581,13 +582,13 @@ impl GameServer {
     }
 
     fn handle_connection(&mut self, request: String, socket: &mut TcpStream) {
-        let parsed_request: serde_json::Value = match serde_json::from_str(&request) {
-            Ok(r) => r,
-            Err(e) => {
-                println!("Invalid request {} - {}", request, e);
-                return 
-            }
-        };
+        //let parsed_request: serde_json::Value = match serde_json::from_str(&request) {
+        //    Ok(r) => r,
+        //    Err(e) => {
+        //        println!("Invalid request {} - {}", request, e);
+        //        return 
+        //    }
+        //};
         //println!("Received request: {}", request);
         //let packet_time: u128 = parsed_request["time"].as_str().unwrap().parse::<u128>().unwrap();
         ////println!("{}", packet_time);
@@ -598,26 +599,35 @@ impl GameServer {
         //    packet_time - MAX_LAG > epoch_time {
         //        return
         //}
+        let keys: Vec<&str> = request.split(":").into_iter().collect();
+        let game_id = keys[0];
+        let player = keys[1];
+        let command = keys[2];
+        let meta = keys[3];
 
-
-        let data = match parsed_request["command"].as_str() {
-            Some("newgame") => {
+        //let data = match parsed_request["command"].as_str() {
+        match command {
+            "newgame" => {
                 let game = NetworkedGame::new();
                 self.games.push(game.clone());
-                json!({
-                    "game_id": game.session_id,
-                })
+                let _ = socket.write_all(game.session_id.as_bytes());
             },
-            Some("listgames") => {
+            "listgames" => {
                 let game_info: Vec<Vec<String>> = self.games.iter().filter(|game| !game.started ).map(|game| {
                     vec![game.session_id.clone(), game.players.len().to_string()]
                 }).collect();
-                json!({
-                    "games": game_info ,
-                })
+
+                let result = format!("{:?}", game_info);
+                let _ = socket.write_all(result.as_bytes());
             },
-            Some("joingame") => {
-                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+            "getworld" => {
+                if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+                    let _ = socket.write_all(json!(game).to_string().as_bytes());
+                } else {
+                    println!("Invalid Game {}", game_id);
+                }
+            },
+            "joingame" => {
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
                     if game.players.len() < MAX_PLAYERS {
                         let player_pos = if game.players.len() == 0 {
@@ -625,41 +635,38 @@ impl GameServer {
                         } else {
                             Position { x: 500.0, y: 250.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT }
                         };
-                        let new_player = Player::new(parsed_request["name"].as_str().unwrap_or("").to_string(), player_pos, None);
+                        let new_player = Player::new(player.clone().to_string(), player_pos, None);
                         game.players.push(new_player);
                         if game.players.len() == MAX_PLAYERS {
                             println!("Starting game {}", game.session_id);
                             game.started = true;
                         }
-                        json!(game)
+                        let _ = socket.write_all(json!(game).to_string().as_bytes());
                     } else {
-                        json!({"error": format!("game {:?} is full", game.session_id)})
+                        println!("game {:?} is full", game.session_id);
                     }
                 } else {
-                    json!({"error": format!("Invalid Game {}", game_id)})
+                    println!("Invalid Game {}", game_id);
                 }
             },
-            Some("ready") => {
-                let player_name = parsed_request["name"].as_str().unwrap_or("");
-                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+            "ready" => {
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
-                    for player in  game.players.iter_mut() {
-                        if player.name == player_name {
-                            player.ready = true;
+                    for game_player in  game.players.iter_mut() {
+                        if game_player.name == player {
+                            game_player.ready = true;
                         }
                     }
                     let ready = game.players.iter().filter(|p| p.ready).cloned().collect::<Vec<Player>>().len() == 2;
-                    json!({"ready": ready})
+                    let result = json!({"ready": ready});
+                    let _ = socket.write_all(result.to_string().as_bytes());
                 } else {
-                    json!({"error": format!("Invalid Game {}", game_id)})
+                    println!("Invalid Game {}", game_id);
                 }
             },
-            Some("sendposition") => {
-                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+            "sendposition" => {
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
-                    let name = parsed_request["name"].as_str().unwrap_or("");
-                    if let Some(player) = game.players.iter_mut().find(|p| &p.name == name) {
-                        let update_player: Vec<f32> = serde_json::from_str(parsed_request["meta"].as_str().unwrap()).unwrap();
+                    if let Some(player) = game.players.iter_mut().find(|p| &p.name == player) {
+                        let update_player: Vec<f32> = serde_json::from_str(meta).unwrap();
                         //*player = update_player;
                         player.body.x = update_player[0];
                         player.body.y = update_player[1];
@@ -671,37 +678,40 @@ impl GameServer {
                     return
                     // json!(game)
                 } else {
-                    json!({"error": format!("Invalid Game {}", game_id)})
+                    println!("Invalid Game {}", game_id);
                 }
             },
-            Some("getopponent") => {
-                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
-                let name = parsed_request["name"].as_str().unwrap_or("");
+            "getopponent" => {
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                    if let Some(player) = game.players.iter().find(|p| p.name != name) {
-                        json!({"opponent": vec![player.body.x, player.body.y, player.dir.clone().into(), player.jumping as usize as f32, 0.0, 0.0]})
+                    if let Some(player) = game.players.iter().find(|p| p.name != player) {
+                        let result = json!({"opponent": vec![player.body.x, player.body.y, player.dir.clone().into(), player.jumping as usize as f32, 0.0, 0.0]});
+                        let _ = socket.write_all(result.to_string().as_bytes());
                     } else {
-                       json!({"error": format!("Invalid Player {}", name)})
+                       println!("Invalid Player {}", player);
                     }
                 } else {
-                    json!({"error": format!("Invalid Game {}", game_id)})
-                }
-            }
-            Some("getworld") => {
-                let game_id = parsed_request["game_id"].as_str().unwrap_or("");
-                if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                    json!(game)
-                } else {
-                    json!({"error": format!("Invalid Game {}", game_id)})
+                    println!("Invalid Game {}", game_id);
                 }
             },
             _ => {
-                json!({
-                    "error": "Invalid Command",
-                })
             }
-        };
-        let _ = socket.write_all(data.to_string().as_bytes()).unwrap();
+        }
+
+        //    Some("getworld") => {
+        //        let game_id = parsed_request["game_id"].as_str().unwrap_or("");
+        //        if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+        //            json!(game)
+        //        } else {
+        //            json!({"error": format!("Invalid Game {}", game_id)})
+        //        }
+        //    },
+        //    _ => {
+        //        json!({
+        //            "error": "Invalid Command",
+        //        })
+        //    }
+        //};
+        //let _ = socket.write_all(data.to_string().as_bytes()).unwrap();
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> String {
@@ -710,17 +720,19 @@ impl GameServer {
 
         //println!("Successfully connected to server {}", host);
     
-        let epoch_time: String = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
-        let data = json!({
-            "game_id": game_id.clone(),
-            "name": player.clone(),
-            "command": msg.clone(),
-            "meta": meta.clone(),
-            //"time": epoch_time,
-        });
-        let msg = data.to_string();
-    
-        match socket.write_all(msg.as_bytes()) {
+        //let epoch_time: String = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
+        //let data = json!({
+        //    "game_id": game_id.clone(),
+        //    "name": player.clone(),
+        //    "command": msg.clone(),
+        //    "meta": meta.clone(),
+        //    //"time": epoch_time,
+        //});
+        //let msg = data.to_string();
+        //let msg = vec![game_id.clone().as_bytes(), player.clone().as_bytes(), msg.clone().as_bytes(), meta.clone().as_bytes()];
+        let msg = format!("{}:{}:{}:{}", game_id.clone(), player.clone(), msg.clone(), meta.clone());
+
+        match socket.write_all(&Bytes::from(msg)) {
             Ok(_) => (),
             Err(e) => {
                 return e.to_string()
@@ -774,14 +786,14 @@ impl GameState {
 
     fn get_opponent(server: String, player: String, game_id: String) -> Option<Vec<f32>> {
         let result = GameServer::send_message(server, game_id, player, "getopponent".to_string(), "".to_string(), true);
-        let opponent: serde_json::Value = serde_json::from_str(&result).unwrap();
-        if let Some(opponent_array) = opponent["opponent"].as_array() {
-            let opponent_vec: Vec<f32> = opponent_array.iter().map(|p| p.as_f64().unwrap() as f32 ).collect();
-            return Some(opponent_vec);
+        if let Ok(opponent) = serde_json::from_str::<serde_json::Value>(&result) {
+            if let Some(opponent_array) = opponent["opponent"].as_array() {
+                let opponent_vec: Vec<f32> = opponent_array.iter().map(|p| p.as_f64().unwrap() as f32 ).collect();
+                return Some(opponent_vec);
        
-        } else {
-            None
+            }
         }
+        None
     }
 
     fn get_world_state(server: String, player: String, game_id: String) -> Option<NetworkedGame> {
@@ -1023,6 +1035,7 @@ fn main() -> GameResult {
             server_input.retain(|c| !c.is_whitespace());
 
             let command = server_input.to_ascii_lowercase().to_string();
+            let cloned_command = command.clone();
             if command.len() >= 7 && command[0..7].to_string() == "setgame" {
                 game_id = command[7..].to_string();
                 println!("Game ID set to {}", game_id);
@@ -1035,11 +1048,9 @@ fn main() -> GameResult {
                 let result = GameServer::send_message(server.clone().to_string(),
                                                       game_id.clone(), player.to_string(), command, "".to_string(), true);
                 println!("{}", result);
-                if let Ok(result_obj) = serde_json::from_str::<serde_json::Value>(&result) {
-                    if let Some(new_game_id) = result_obj["game_id"].as_str() {
-                        game_id = new_game_id.to_string();
-                        println!("Game ID set to {}", game_id);
-                    }
+                if cloned_command.clone() == "newgame" {
+                    game_id = result;
+                    println!("Game ID set to {}", game_id);
                 }
             }
         }
