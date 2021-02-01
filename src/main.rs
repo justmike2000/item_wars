@@ -687,7 +687,6 @@ impl GameServer {
         let player = keys[1];
         let command = NetActions::from_usize(keys[2].parse::<i32>().unwrap() as usize);
         let meta = keys[3];
-        println!("ACTION {:?}", command);
 
         //let data = match parsed_request["command"].as_str() {
         match command {
