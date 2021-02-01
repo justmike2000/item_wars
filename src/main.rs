@@ -10,7 +10,7 @@ use std::{time::{Duration, Instant}};
 use std::path;
 use std::env;
 use std::collections::HashMap;
-use std::io::{self, Read};
+use std::io::{self, Read, BufRead};
 use std::io::prelude::*;
 use std::net::{TcpStream, TcpListener};
 
@@ -53,8 +53,6 @@ const NET_MILLIS_PER_UPDATE: u64 = 50; // 20 ticks
 // checks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
-
-const PACKET_SIZE: usize = 1_000;
 
 #[derive(PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 struct Position {
@@ -641,16 +639,20 @@ impl GameServer {
             for stream in listener.incoming() {
                match stream {
                    Ok(mut stream_result) => {
-                       let mut buf = [0; PACKET_SIZE];
-                       match stream_result.read(&mut buf) {
-                           Ok(size) => {
-                               let request = String::from_utf8_lossy(&mut buf[0..size]);
-                               self.handle_connection(request.to_string(), &mut stream_result);
-                           },
-                           Err(_) => {
+                       let mut reader = io::BufReader::new(&mut stream_result);
+                       let received: Vec<u8> = reader.fill_buf().unwrap().to_vec();
+                       reader.consume(received.len());
+                       let result = String::from_utf8(received).unwrap();
+                       self.handle_connection(result, &mut stream_result);
+                       //match stream_result.read(&mut buf) {
+                       //    Ok(size) => {
+                       //        let request = String::from_utf8_lossy(&mut buf[0..size]);
+                       //        self.handle_connection(request.to_string(), &mut stream_result);
+                       //    },
+                       //    Err(_) => {
 
-                           }
-                       }
+                       //    }
+                       //}
                    },
                    Err(e) => {
                        println!("couldn't recieve: {}", e);
