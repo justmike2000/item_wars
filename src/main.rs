@@ -54,7 +54,7 @@ const NET_MILLIS_PER_UPDATE: u64 = 50; // 20 ticks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
 
-const JSON_PACKET_SIZE: usize = 5_000;
+const PACKET_SIZE: usize = 500;
 
 const MAX_LAG: u128 = 500;
 
@@ -643,7 +643,7 @@ impl GameServer {
             for stream in listener.incoming() {
                match stream {
                    Ok(mut stream_result) => {
-                       let mut buf = [0; JSON_PACKET_SIZE];
+                       let mut buf = [0; PACKET_SIZE];
                        match stream_result.read(&mut buf) {
                            Ok(size) => {
                                let request = String::from_utf8_lossy(&mut buf[0..size]);
@@ -829,7 +829,7 @@ impl GameServer {
         if !block {
             return "".to_string()
         }
-        let mut buf = [0; JSON_PACKET_SIZE];
+        let mut buf = [0; PACKET_SIZE];
         match socket.read(&mut buf) {
             Ok(size) => String::from_utf8_lossy(&buf[0..size]).to_string(),
             Err(e) => {
