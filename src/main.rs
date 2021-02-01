@@ -815,6 +815,7 @@ impl GameServer {
             }
         };
         socket.set_nodelay(true).expect("set_nodelay call failed");
+        socket.set_nonblocking(!block).expect("set_nonblocking call failed");
 
         //println!("Successfully connected to server {}", host);
     
@@ -837,7 +838,9 @@ impl GameServer {
                 return None
             }
         }
-        socket.flush();
+        if block {
+            socket.flush();
+        }
         //println!("Sent {} awaiting reply...", msg);
     
         if !block {
