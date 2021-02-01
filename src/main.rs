@@ -807,7 +807,9 @@ impl GameServer {
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> String {
-        let mut socket = TcpStream::connect(host.clone()).unwrap();
+        let socket_addr: std::net::SocketAddr = host.clone().parse().unwrap();
+        let mut socket = TcpStream::connect_timeout(&socket_addr, Duration::new(30, 0)).unwrap();
+        socket.set_nodelay(true).expect("set_nodelay call failed");
 
         //println!("Successfully connected to server {}", host);
     
