@@ -54,9 +54,7 @@ const NET_MILLIS_PER_UPDATE: u64 = 50; // 20 ticks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
 
-const PACKET_SIZE: usize = 2_000;
-
-const MAX_LAG: u128 = 500;
+const PACKET_SIZE: usize = 1_000;
 
 #[derive(PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 struct Position {
