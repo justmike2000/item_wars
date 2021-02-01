@@ -695,6 +695,7 @@ impl GameServer {
                 let game = NetworkedGame::new(self.game_count.clone());
                 self.games.push(game.clone());
                 let _ = socket.write_all(game.session_id.as_bytes());
+                socket.flush();
             },
             NetActions::listgames => {
                 let game_info: Vec<Vec<String>> = self.games.iter().filter(|game| !game.started ).map(|game| {
@@ -703,10 +704,12 @@ impl GameServer {
 
                 let result = format!("{:?}", game_info);
                 let _ = socket.write_all(result.as_bytes());
+                socket.flush();
             },
             NetActions::getworld => {
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
                     let _ = socket.write_all(json!(game).to_string().as_bytes());
+                    socket.flush();
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
@@ -726,6 +729,7 @@ impl GameServer {
                             game.started = true;
                         }
                         let _ = socket.write_all(json!(game).to_string().as_bytes());
+                        socket.flush();
                     } else {
                         println!("game {:?} is full", game.session_id);
                     }
@@ -743,6 +747,7 @@ impl GameServer {
                     let ready = game.players.iter().filter(|p| p.ready).cloned().collect::<Vec<Player>>().len() == 2;
                     let result = json!({"ready": ready});
                     let _ = socket.write_all(result.to_string().as_bytes());
+                    socket.flush();
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
@@ -770,6 +775,7 @@ impl GameServer {
                     if let Some(player) = game.players.iter().find(|p| p.name != player) {
                         let result = json!({"opponent": vec![player.body.x, player.body.y, player.dir.clone().into(), player.jumping as usize as f32, 0.0, 0.0]});
                         let _ = socket.write_all(result.to_string().as_bytes());
+                        socket.flush();
                     } else {
                        println!("Invalid Player {}", player);
                     }
@@ -822,6 +828,7 @@ impl GameServer {
                 return e.to_string()
             }
         }
+        socket.flush();
         //println!("Sent {} awaiting reply...", msg);
     
         if !block {
