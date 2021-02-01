@@ -54,7 +54,7 @@ const NET_MILLIS_PER_UPDATE: u64 = 50; // 20 ticks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
 
-const PACKET_SIZE: usize = 500;
+const PACKET_SIZE: usize = 2_000;
 
 const MAX_LAG: u128 = 500;
 
@@ -829,9 +829,10 @@ impl GameServer {
         if !block {
             return "".to_string()
         }
-        let mut buf = [0; PACKET_SIZE];
-        match socket.read(&mut buf) {
-            Ok(size) => String::from_utf8_lossy(&buf[0..size]).to_string(),
+        //let mut buf = [0; PACKET_SIZE];
+        let mut buf = vec![];
+        match socket.read_to_end(&mut buf) {
+            Ok(size) => String::from_utf8_lossy(&buf).to_string(),
             Err(e) => {
                 format!("Failed to connect: {}", e)
             }
