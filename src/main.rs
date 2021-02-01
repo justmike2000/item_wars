@@ -820,15 +820,7 @@ impl GameServer {
         //println!("Successfully connected to server {}", host);
     
         //let epoch_time: String = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
-        //let data = json!({
-        //    "game_id": game_id.clone(),
-        //    "name": player.clone(),
-        //    "command": msg.clone(),
-        //    "meta": meta.clone(),
-        //    //"time": epoch_time,
-        //});
-        //let msg = data.to_string();
-        //let msg = vec![game_id.clone().as_bytes(), player.clone().as_bytes(), msg.clone().as_bytes(), meta.clone().as_bytes()];
+
         let net_action: usize = NetActions::from_string(msg.clone()).into();
         let msg = format!("{}:{}:{}:{}", game_id.clone(), player.clone(), net_action, meta.clone());
 
@@ -846,7 +838,6 @@ impl GameServer {
         if !block {
             return Some("".to_string())
         }
-        //let mut buf = [0; PACKET_SIZE];
         let mut buf = vec![];
         match socket.read_to_end(&mut buf) {
             Ok(size) => Some(String::from_utf8_lossy(&buf).to_string()),
@@ -876,6 +867,7 @@ struct GameState {
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>,
     player_receiver: crossbeam_channel::Receiver<Vec<f32>>,
     player_pos_sender: crossbeam_channel::Sender<Player>,
+    opponent_positions: Vec<(f32, f32)>,
 }
 
 impl GameState {
@@ -972,6 +964,7 @@ impl GameState {
             textures,
             player_receiver: r,
             player_pos_sender: player_pos_sender,
+            opponent_positions: vec![],
         };
 
         let threaded_host_pos = host.clone();
@@ -1030,20 +1023,38 @@ impl event::EventHandler for GameState {
         } 
 
         // Get opponent
-        if let Ok(net_opponent) = self.player_receiver.try_recv() {
-            //self.opponent.name = opponent.name.clone();
-            self.opponent.body.x = net_opponent[0];
-            self.opponent.body.y = net_opponent[1];
-            self.opponent.dir = Direction::from(net_opponent[2]);
-            self.opponent.jumping = net_opponent[3] != 0.0;
-            //self.opponent.dir = opponent.dir.clone();
-            //self.opponent.body = opponent.body;
-            //self.opponent.dir = opponent.dir.clone();
-            //self.opponent.last_dir = opponent.last_dir.clone();
-            //self.opponent.jumping = opponent.jumping;
-            self.opponent.update();
-        } else {
-            // Try interpoliation
+        if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
+            if let Ok(net_opponent) = self.player_receiver.try_recv() {
+                //self.opponent.name = opponent.name.clone();
+                self.opponent.body.x = net_opponent[0];
+                self.opponent.body.y = net_opponent[1];
+                self.opponent.dir = Direction::from(net_opponent[2]);
+                self.opponent.jumping = net_opponent[3] != 0.0;
+                if self.opponent_positions.len() < 100 {
+                    self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y));
+                } else {
+                    self.opponent_positions.remove(1);
+                    self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y));
+                }
+                self.opponent.update();
+                //self.opponent.dir = opponent.dir.clone();
+                //self.opponent.body = opponent.body;
+                //self.opponent.dir = opponent.dir.clone();
+                //self.opponent.last_dir = opponent.last_dir.clone();
+                //self.opponent.jumping = opponent.jumping;
+            } else if self.started {
+                // Try interpoliation
+                if self.opponent_positions.len() == 100 {
+                    let opponent_x: Vec<f32> = self.opponent_positions.iter().map(|x| x.0).collect();
+                    let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|x| x.1).collect();
+                    let change_x = opponent_x.iter().sum::<f32>() / 100.0;
+                    let change_y = opponent_y.iter().sum::<f32>() / 100.0;
+                    self.opponent.body.x = self.opponent.body.x + (change_x * 100.0);
+                    self.opponent.body.y = self.opponent.body.y + (change_y * 100.0);
+                    self.opponent_positions.remove(1);
+                    self.opponent.update();
+                }
+            }
         }
 
         // Countdown till all players read
