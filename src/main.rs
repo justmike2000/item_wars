@@ -6,7 +6,7 @@ use ggez::{event, graphics, Context, GameResult};
 use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
-use std::{time::{Duration, Instant}};
+use std::{fmt::Error, time::{Duration, Instant}};
 use std::path;
 use std::env;
 use std::collections::HashMap;
@@ -806,9 +806,14 @@ impl GameServer {
         //let _ = socket.write_all(data.to_string().as_bytes()).unwrap();
     }
 
-    fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> String {
+    fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> Option<String> {
         let socket_addr: std::net::SocketAddr = host.clone().parse().unwrap();
-        let mut socket = TcpStream::connect_timeout(&socket_addr, Duration::new(30, 0)).unwrap();
+        let mut socket = match TcpStream::connect_timeout(&socket_addr, Duration::new(30, 0)) {
+            Ok(s) => s,
+            Err(_e) => {
+                return None
+            }
+        };
         socket.set_nodelay(true).expect("set_nodelay call failed");
 
         //println!("Successfully connected to server {}", host);
@@ -828,22 +833,23 @@ impl GameServer {
 
         match socket.write_all(&Bytes::from(msg)) {
             Ok(_) => (),
-            Err(e) => {
-                return e.to_string()
+            Err(_e) => {
+                return None
             }
         }
         socket.flush();
         //println!("Sent {} awaiting reply...", msg);
     
         if !block {
-            return "".to_string()
+            return Some("".to_string())
         }
         //let mut buf = [0; PACKET_SIZE];
         let mut buf = vec![];
         match socket.read_to_end(&mut buf) {
-            Ok(size) => String::from_utf8_lossy(&buf).to_string(),
-            Err(e) => {
-                format!("Failed to connect: {}", e)
+            Ok(size) => Some(String::from_utf8_lossy(&buf).to_string()),
+            Err(_e) => {
+                return None
+                //format!("Failed to connect: {}", e)
             }
         }
     }
@@ -873,16 +879,21 @@ impl GameState {
 
     fn join_game(host: String, player: String, game_id: String) -> String {
         let msg = format!("joingame");
-        GameServer::send_message(host, game_id, player, msg, "".to_string(), true)
+        GameServer::send_message(host, game_id, player, msg, "".to_string(), true).unwrap()
     }
 
     fn send_ready(server: String, player: String, game_id: String) -> String {
         let msg = format!("ready");
-        GameServer::send_message(server, game_id, player, msg, "".to_string(), true)
+        GameServer::send_message(server, game_id, player, msg, "".to_string(), true).unwrap()
     }
 
     fn get_opponent(server: String, player: String, game_id: String) -> Option<Vec<f32>> {
-        let result = GameServer::send_message(server, game_id, player, "getopponent".to_string(), "".to_string(), true);
+        let result = match GameServer::send_message(server, game_id, player, "getopponent".to_string(), "".to_string(), true) {
+            Some(r) => r,
+            None => {
+                return None;
+            },
+        };
         if let Ok(opponent) = serde_json::from_str::<serde_json::Value>(&result) {
             if let Some(opponent_array) = opponent["opponent"].as_array() {
                 let opponent_vec: Vec<f32> = opponent_array.iter().map(|p| p.as_f64().unwrap() as f32 ).collect();
@@ -895,7 +906,7 @@ impl GameState {
 
     fn get_world_state(server: String, player: String, game_id: String) -> Option<NetworkedGame> {
         let msg = format!("getworld");
-        let result = GameServer::send_message(server, game_id, player, msg, "".to_string(), true);
+        let result = GameServer::send_message(server, game_id, player, msg, "".to_string(), true).unwrap();
         match serde_json::from_str(&result) {
             Ok(r) => Some(r),
             Err(e) => {
@@ -1163,7 +1174,7 @@ fn main() -> GameResult {
                 panic!("Exit");
             } else {
                 let result = GameServer::send_message(server.clone().to_string(),
-                                                      game_id.clone(), player.to_string(), command, "".to_string(), true);
+                                                      game_id.clone(), player.to_string(), command, "".to_string(), true).unwrap();
                 println!("{}", result);
                 if cloned_command.clone() == "newgame" {
                     game_id = result;
