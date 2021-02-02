@@ -6,7 +6,7 @@ use ggez::{event, graphics, Context, GameResult};
 use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
-use std::{fmt::Error, time::{Duration, Instant}};
+use std::{fmt::Error, ops::Index, time::{Duration, Instant}};
 use std::path;
 use std::env;
 use std::collections::HashMap;
@@ -1044,14 +1044,26 @@ impl event::EventHandler for GameState {
                 //self.opponent.jumping = opponent.jumping;
             } else if self.started {
                 // Try interpoliation
-                if self.opponent_positions.len() == 100 {
+                if self.opponent_positions.len() == 4 {
                     let opponent_x: Vec<f32> = self.opponent_positions.iter().map(|x| x.0).collect();
-                    let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|x| x.1).collect();
-                    let change_x = opponent_x.iter().sum::<f32>() / 100.0;
-                    let change_y = opponent_y.iter().sum::<f32>() / 100.0;
-                    self.opponent.body.x = self.opponent.body.x + (change_x * 100.0);
-                    self.opponent.body.y = self.opponent.body.y + (change_y * 100.0);
-                    self.opponent_positions.remove(1);
+                    let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|y| y.1).collect();
+                    let mut total_change_x = 0.0;
+                    let mut total_change_y = 0.0;
+                    for i in (0..4).step_by(2) {
+                        let change_x = opponent_x.index(i+1)  - opponent_x.index(i);
+                        total_change_x += change_x;
+                    }
+                    self.opponent.body.x += total_change_x;
+                    for i in (0..4).step_by(2) {
+                        let change_y = opponent_y.index(i+1)  - opponent_y.index(i);
+                        total_change_y += change_y;
+                    }
+                    //let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|x| x.1).collect();
+                    //let change_x = opponent_x.iter().sum::<f32>() / 100.0;
+                    //let change_y = opponent_y.iter().sum::<f32>() / 100.0;
+                    //self.opponent.body.x = self.opponent.body.x + (change_x * 100.0);
+                    //self.opponent.body.y = self.opponent.body.y + (change_y * 100.0);
+                    //self.opponent_positions.remove(1);
                     self.opponent.update();
                 }
             }
