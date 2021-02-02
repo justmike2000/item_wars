@@ -1058,6 +1058,7 @@ impl event::EventHandler for GameState {
                         let change_y = opponent_y.index(i+1)  - opponent_y.index(i);
                         total_change_y += change_y;
                     }
+                    self.opponent.body.y += total_change_y;
                     //let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|x| x.1).collect();
                     //let change_x = opponent_x.iter().sum::<f32>() / 100.0;
                     //let change_y = opponent_y.iter().sum::<f32>() / 100.0;
