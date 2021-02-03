@@ -12,7 +12,7 @@ use std::env;
 use std::collections::HashMap;
 use std::io::{self, Read, BufRead};
 use std::io::prelude::*;
-use std::net::{TcpStream, TcpListener};
+use std::net::{UdpSocket, SocketAddr};
 
 use serde::{Deserialize, Serialize};
 use clap::App;
@@ -633,36 +633,44 @@ impl GameServer {
     }
 
     fn host(&mut self) {
-        let listener = TcpListener::bind(self.hostname.clone()).unwrap();
+        //let listener = TcpListener::bind(self.hostname.clone()).unwrap();
+        let mut socket = UdpSocket::bind(self.hostname.clone()).unwrap();
 
         loop {
-            for stream in listener.incoming() {
-               match stream {
-                   Ok(mut stream_result) => {
-                       let mut reader = io::BufReader::new(&mut stream_result);
-                       let received: Vec<u8> = reader.fill_buf().unwrap().to_vec();
-                       reader.consume(received.len());
-                       let result = String::from_utf8(received).unwrap();
-                       self.handle_connection(result, &mut stream_result);
-                       //match stream_result.read(&mut buf) {
-                       //    Ok(size) => {
-                       //        let request = String::from_utf8_lossy(&mut buf[0..size]);
-                       //        self.handle_connection(request.to_string(), &mut stream_result);
-                       //    },
-                       //    Err(_) => {
+            let mut buf = [0; 2_000];
+            //let mut buf = vec![];
+            let (amt, src) = socket.recv_from(&mut buf).unwrap();
+            let result = String::from_utf8(buf.to_vec()).unwrap();
+            self.handle_connection(result, &mut socket, src, amt);
 
-                       //    }
-                       //}
-                   },
-                   Err(e) => {
-                       println!("couldn't recieve: {}", e);
-                   }
-                }
-           }
+            // <TODO>
+            //for stream in listener.incoming() {
+            //   match stream {
+            //       Ok(mut stream_result) => {
+            //           let mut reader = io::BufReader::new(&mut stream_result);
+            //           let received: Vec<u8> = reader.fill_buf().unwrap().to_vec();
+            //           reader.consume(received.len());
+            //           let result = String::from_utf8(received).unwrap();
+            //           self.handle_connection(result, &mut stream_result);
+            //           //match stream_result.read(&mut buf) {
+            //           //    Ok(size) => {
+            //           //        let request = String::from_utf8_lossy(&mut buf[0..size]);
+            //           //        self.handle_connection(request.to_string(), &mut stream_result);
+            //           //    },
+            //           //    Err(_) => {
+
+            //           //    }
+            //           //}
+            //       },
+            //       Err(e) => {
+            //           println!("couldn't recieve: {}", e);
+            //       }
+            //    }
+            // }
         }
     }
 
-    fn handle_connection(&mut self, request: String, socket: &mut TcpStream) {
+    fn handle_connection(&mut self, request: String, socket: &mut UdpSocket, addr: SocketAddr, amt: usize) {
         //println!("SIZE: {}", request.len());
         //println!("REQUEST: {:?}", request);
         //let parsed_request: serde_json::Value = match serde_json::from_str(&request) {
@@ -682,7 +690,7 @@ impl GameServer {
         //    packet_time - MAX_LAG > epoch_time {
         //        return
         //}
-        let keys: Vec<&str> = request.split(":").into_iter().collect();
+        let keys: Vec<&str> = request[0..amt].split(":").into_iter().collect();
         let game_id = keys[0];
         let player = keys[1];
         let command = NetActions::from_usize(keys[2].parse::<i32>().unwrap() as usize);
@@ -696,8 +704,7 @@ impl GameServer {
                 self.game_count = count.to_string();
                 let game = NetworkedGame::new(self.game_count.clone());
                 self.games.push(game.clone());
-                let _ = socket.write_all(game.session_id.as_bytes());
-                socket.flush();
+                socket.send_to(game.session_id.as_bytes(), addr);
             },
             NetActions::listgames => {
                 let game_info: Vec<Vec<String>> = self.games.iter().filter(|game| !game.started ).map(|game| {
@@ -705,13 +712,11 @@ impl GameServer {
                 }).collect();
 
                 let result = format!("{:?}", game_info);
-                let _ = socket.write_all(result.as_bytes());
-                socket.flush();
+                socket.send_to(result.as_bytes(), addr);
             },
             NetActions::getworld => {
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                    let _ = socket.write_all(json!(game).to_string().as_bytes());
-                    socket.flush();
+                    socket.send_to(json!(game).to_string().as_bytes(), addr);
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
@@ -730,8 +735,7 @@ impl GameServer {
                             println!("Starting game {}", game.session_id);
                             game.started = true;
                         }
-                        let _ = socket.write_all(json!(game).to_string().as_bytes());
-                        socket.flush();
+                        socket.send_to(json!(game).to_string().as_bytes(), addr);
                     } else {
                         println!("game {:?} is full", game.session_id);
                     }
@@ -748,8 +752,7 @@ impl GameServer {
                     }
                     let ready = game.players.iter().filter(|p| p.ready).cloned().collect::<Vec<Player>>().len() == 2;
                     let result = json!({"ready": ready});
-                    let _ = socket.write_all(result.to_string().as_bytes());
-                    socket.flush();
+                    socket.send_to(result.to_string().as_bytes(), addr);
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
@@ -776,8 +779,7 @@ impl GameServer {
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
                     if let Some(player) = game.players.iter().find(|p| p.name != player) {
                         let result = json!({"opponent": vec![player.body.x, player.body.y, player.dir.clone().into(), player.jumping as usize as f32, 0.0, 0.0]});
-                        let _ = socket.write_all(result.to_string().as_bytes());
-                        socket.flush();
+                        socket.send_to(result.to_string().as_bytes(), addr);
                     } else {
                        println!("Invalid Player {}", player);
                     }
@@ -807,15 +809,17 @@ impl GameServer {
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> Option<String> {
-        let socket_addr: std::net::SocketAddr = host.clone().parse().unwrap();
-        let mut socket = match TcpStream::connect_timeout(&socket_addr, Duration::new(30, 0)) {
-            Ok(s) => s,
-            Err(_e) => {
-                return None
-            }
-        };
-        socket.set_nodelay(true).expect("set_nodelay call failed");
-        socket.set_nonblocking(!block).expect("set_nonblocking call failed");
+        //let socket_addr: std::net::SocketAddr = host.clone().parse().unwrap();
+        //let mut socket = match TcpStream::connect_timeout(&socket_addr, Duration::new(30, 0)) {
+        //    Ok(s) => s,
+        //    Err(_e) => {
+        //        return None
+        //    }
+        //};
+        //socket.set_nodelay(true).expect("set_nodelay call failed");
+        //socket.set_nonblocking(!block).expect("set_nonblocking call failed");
+        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let _ = socket.connect(host.clone());
 
         //println!("Successfully connected to server {}", host);
     
@@ -824,23 +828,21 @@ impl GameServer {
         let net_action: usize = NetActions::from_string(msg.clone()).into();
         let msg = format!("{}:{}:{}:{}", game_id.clone(), player.clone(), net_action, meta.clone());
 
-        match socket.write_all(&Bytes::from(msg)) {
+        match socket.send(&Bytes::from(msg)) {
             Ok(_) => (),
             Err(_e) => {
                 return None
             }
-        }
-        if block {
-            socket.flush();
         }
         //println!("Sent {} awaiting reply...", msg);
     
         if !block {
             return Some("".to_string())
         }
-        let mut buf = vec![];
-        match socket.read_to_end(&mut buf) {
-            Ok(size) => Some(String::from_utf8_lossy(&buf).to_string()),
+        // let mut buf = vec![];
+        let mut buf = [0; 2_000];
+        match socket.recv(&mut buf) {
+            Ok(size) => Some(String::from_utf8_lossy(&buf[0..size]).to_string()),
             Err(_e) => {
                 return None
                 //format!("Failed to connect: {}", e)
@@ -1030,7 +1032,7 @@ impl event::EventHandler for GameState {
                 self.opponent.body.y = net_opponent[1];
                 self.opponent.dir = Direction::from(net_opponent[2]);
                 self.opponent.jumping = net_opponent[3] != 0.0;
-                if self.opponent_positions.len() < 100 {
+                if self.opponent_positions.len() <= 2 {
                     self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y));
                 } else {
                     self.opponent_positions.remove(1);
@@ -1044,20 +1046,18 @@ impl event::EventHandler for GameState {
                 //self.opponent.jumping = opponent.jumping;
             } else if self.started {
                 // Try interpoliation
-                if self.opponent_positions.len() == 4 {
+                if self.opponent_positions.len() == 2 {
                     let opponent_x: Vec<f32> = self.opponent_positions.iter().map(|x| x.0).collect();
                     let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|y| y.1).collect();
                     let mut total_change_x = 0.0;
                     let mut total_change_y = 0.0;
-                    for i in (0..4).step_by(2) {
-                        let change_x = opponent_x.index(i+1)  - opponent_x.index(i);
-                        total_change_x += change_x;
-                    }
+
+                    let change_x = opponent_x.index(0)  - opponent_x.index(1);
+                    total_change_x += change_x;
                     self.opponent.body.x += total_change_x;
-                    for i in (0..4).step_by(2) {
-                        let change_y = opponent_y.index(i+1)  - opponent_y.index(i);
-                        total_change_y += change_y;
-                    }
+
+                    let change_y = opponent_y.index(0)  - opponent_y.index(1);
+                    total_change_y += change_y;
                     self.opponent.body.y += total_change_y;
                     //let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|x| x.1).collect();
                     //let change_x = opponent_x.iter().sum::<f32>() / 100.0;
