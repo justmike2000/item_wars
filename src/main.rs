@@ -818,7 +818,7 @@ impl GameServer {
         //};
         //socket.set_nodelay(true).expect("set_nodelay call failed");
         //socket.set_nonblocking(!block).expect("set_nonblocking call failed");
-        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
         let _ = socket.connect(host.clone());
 
         //println!("Successfully connected to server {}", host);
