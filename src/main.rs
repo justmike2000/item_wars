@@ -6,18 +6,16 @@ use ggez::{event, graphics, Context, GameResult};
 use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
-use std::{fmt::Error, ops::Index, time::{Duration, Instant}};
+use std::{ops::Index, time::{Duration, Instant}};
 use std::path;
 use std::env;
 use std::collections::HashMap;
-use std::io::{self, Read, BufRead};
-use std::io::prelude::*;
+use std::io::{self};
 use std::net::{UdpSocket, SocketAddr};
 
 use serde::{Deserialize, Serialize};
 use clap::App;
 use rand::Rng;
-use uuid::Uuid;
 use serde_json::*;
 use crossbeam_channel::bounded;
 use bytes::Bytes;
@@ -520,72 +518,72 @@ impl Hud {
 
 #[derive(PartialEq, Debug)]
 enum NetActions {
-    sendposition,
-    newgame,
-    listgames,
-    ready,
-    getworld,
-    joingame,
-    getopponent,
-    unknown
+    Sendposition,
+    Newgame,
+    Listgames,
+    Ready,
+    Getworld,
+    Joingame,
+    Getopponent,
+    Unknown
 }
 
 impl NetActions {
     fn from_string(action: String) -> NetActions {
         if action == "sendposition" {
-            return NetActions::sendposition
+            return NetActions::Sendposition
         } else if action == "newgame" {
-            return NetActions::newgame
+            return NetActions::Newgame
         } else if action == "listgames" {
-            return NetActions::listgames
+            return NetActions::Listgames
         } else if action == "ready" {
-            return NetActions::ready
+            return NetActions::Ready
         } else if action == "getworld" {
-            return NetActions::getworld
+            return NetActions::Getworld
         } else if action == "getopponent" {
-            return NetActions::getopponent
+            return NetActions::Getopponent
         } else if action == "joingame" {
-            return NetActions::joingame
+            return NetActions::Joingame
         }
-        NetActions::unknown
+        NetActions::Unknown
     }
 
     fn from_usize(action: usize) -> NetActions {
         if action == 1 {
-            return NetActions::sendposition
+            return NetActions::Sendposition
         } else if action == 2 {
-            return NetActions::newgame
+            return NetActions::Newgame
         } else if action == 3 {
-            return NetActions::listgames
+            return NetActions::Listgames
         } else if action == 4 {
-            return NetActions::ready
+            return NetActions::Ready
         } else if action == 5 {
-            return NetActions::getworld
+            return NetActions::Getworld
         } else if action == 6 {
-            return NetActions::getopponent
+            return NetActions::Getopponent
         } else if action == 7 {
-            return NetActions::joingame
+            return NetActions::Joingame
         } else {
-            return NetActions::unknown
+            return NetActions::Unknown
         }
     }
 }
 
 impl Into<usize> for NetActions {
     fn into(self) -> usize {
-        if self == NetActions::sendposition {
+        if self == NetActions::Sendposition {
             return 1
-        } else if self == NetActions::newgame {
+        } else if self == NetActions::Newgame {
             return 2
-        } else if self == NetActions::listgames {
+        } else if self == NetActions::Listgames {
             return 3
-        } else if self == NetActions::ready {
+        } else if self == NetActions::Ready {
             return 4
-        } else if self == NetActions::getworld {
+        } else if self == NetActions::Getworld {
             return 5
-        } else if self == NetActions::getopponent {
+        } else if self == NetActions::Getopponent {
             return 6
-        } else if self == NetActions::joingame {
+        } else if self == NetActions::Joingame {
             return 7
         } else {
             return 0
@@ -698,30 +696,30 @@ impl GameServer {
 
         //let data = match parsed_request["command"].as_str() {
         match command {
-            NetActions::newgame => {
+            NetActions::Newgame => {
                 let mut count = self.game_count.parse::<i32>().unwrap();
                 count += 1;
                 self.game_count = count.to_string();
                 let game = NetworkedGame::new(self.game_count.clone());
                 self.games.push(game.clone());
-                socket.send_to(game.session_id.as_bytes(), addr);
+                let _ = socket.send_to(game.session_id.as_bytes(), addr);
             },
-            NetActions::listgames => {
+            NetActions::Listgames => {
                 let game_info: Vec<Vec<String>> = self.games.iter().filter(|game| !game.started ).map(|game| {
                     vec![game.session_id.clone(), game.players.len().to_string()]
                 }).collect();
 
                 let result = format!("{:?}", game_info);
-                socket.send_to(result.as_bytes(), addr);
+                let _ = socket.send_to(result.as_bytes(), addr);
             },
-            NetActions::getworld => {
+            NetActions::Getworld => {
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-                    socket.send_to(json!(game).to_string().as_bytes(), addr);
+                    let _ = socket.send_to(json!(game).to_string().as_bytes(), addr);
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
             },
-            NetActions::joingame => {
+            NetActions::Joingame => {
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
                     if game.players.len() < MAX_PLAYERS {
                         let player_pos = if game.players.len() == 0 {
@@ -735,7 +733,7 @@ impl GameServer {
                             println!("Starting game {}", game.session_id);
                             game.started = true;
                         }
-                        socket.send_to(json!(game).to_string().as_bytes(), addr);
+                        let _ = socket.send_to(json!(game).to_string().as_bytes(), addr);
                     } else {
                         println!("game {:?} is full", game.session_id);
                     }
@@ -743,7 +741,7 @@ impl GameServer {
                     println!("Invalid Game {}", game_id);
                 }
             },
-            NetActions::ready => {
+            NetActions::Ready => {
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
                     for game_player in  game.players.iter_mut() {
                         if game_player.name == player {
@@ -752,12 +750,12 @@ impl GameServer {
                     }
                     let ready = game.players.iter().filter(|p| p.ready).cloned().collect::<Vec<Player>>().len() == 2;
                     let result = json!({"ready": ready});
-                    socket.send_to(result.to_string().as_bytes(), addr);
+                    let _ = socket.send_to(result.to_string().as_bytes(), addr);
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
             },
-            NetActions::sendposition => {
+            NetActions::Sendposition => {
                 if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
                     if let Some(player) = game.players.iter_mut().find(|p| &p.name == player) {
                         let update_player: Vec<f32> = serde_json::from_str(meta).unwrap();
@@ -775,11 +773,11 @@ impl GameServer {
                     println!("Invalid Game {}", game_id);
                 }
             },
-            NetActions::getopponent => {
+            NetActions::Getopponent => {
                 if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
                     if let Some(player) = game.players.iter().find(|p| p.name != player) {
                         let result = json!({"opponent": vec![player.body.x, player.body.y, player.dir.clone().into(), player.jumping as usize as f32, 0.0, 0.0]});
-                        socket.send_to(result.to_string().as_bytes(), addr);
+                        let _ = socket.send_to(result.to_string().as_bytes(), addr);
                     } else {
                        println!("Invalid Player {}", player);
                     }
@@ -1094,8 +1092,7 @@ impl event::EventHandler for GameState {
             self.last_draw_update = Instant::now();
         }
         if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) {
-            self.player_pos_sender.send(self.player.clone());
-            //GameState::send_position(self.server.clone(), self.player.clone(), self.game_id.clone());
+            let _ = self.player_pos_sender.send(self.player.clone());
             self.last_pos_send = Instant::now();
         }
         Ok(())
