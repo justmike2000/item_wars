@@ -786,6 +786,7 @@ impl GameServer {
                 }
             },
             _ => {
+                let _ = socket.send_to("Invalid Command".as_bytes(), addr);
             }
         }
 
@@ -807,16 +808,8 @@ impl GameServer {
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> Option<String> {
-        //let socket_addr: std::net::SocketAddr = host.clone().parse().unwrap();
-        //let mut socket = match TcpStream::connect_timeout(&socket_addr, Duration::new(30, 0)) {
-        //    Ok(s) => s,
-        //    Err(_e) => {
-        //        return None
-        //    }
-        //};
-        //socket.set_nodelay(true).expect("set_nodelay call failed");
-        //socket.set_nonblocking(!block).expect("set_nonblocking call failed");
         let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+        socket.set_nonblocking(!block).unwrap();
         let _ = socket.connect(host.clone());
 
         //println!("Successfully connected to server {}", host);
@@ -826,7 +819,7 @@ impl GameServer {
         let net_action: usize = NetActions::from_string(msg.clone()).into();
         let msg = format!("{}:{}:{}:{}", game_id.clone(), player.clone(), net_action, meta.clone());
 
-        match socket.send(&Bytes::from(msg)) {
+        match socket.send(&Bytes::from(msg.clone())) {
             Ok(_) => (),
             Err(_e) => {
                 return None
@@ -838,7 +831,13 @@ impl GameServer {
             return Some("".to_string())
         }
         // let mut buf = vec![];
-        let mut buf = [0; 2_000];
+        match socket.set_read_timeout(Some(Duration::new(1, 0))) {
+            Ok(_) => (),
+            Err(_e) => {
+                return None
+            }
+        }
+        let mut buf = [0; 5_000];
         match socket.recv(&mut buf) {
             Ok(size) => Some(String::from_utf8_lossy(&buf[0..size]).to_string()),
             Err(_e) => {
@@ -993,7 +992,9 @@ impl GameState {
                     if let Some(opponent) = GameState::get_opponent(threaded_host.clone(), threaded_player.name.clone(), game_id.clone()) {
                         match s.send(opponent) {
                             Ok(_) => (),
-                            Err (_) => (),
+                            Err (e) => {
+                                println!("{:?}", e);
+                            },
                         }
                     }
                     last_net_update = Instant::now();
@@ -1197,9 +1198,15 @@ fn main() -> GameResult {
             } else if command == "exit" {
                 panic!("Exit");
             } else {
-                let result = GameServer::send_message(server.clone().to_string(),
-                                                      game_id.clone(), player.to_string(), command, "".to_string(), true).unwrap();
-                println!("{}", result);
+                let result = match GameServer::send_message(server.clone().to_string(),
+                                                      game_id.clone(), player.to_string(), command, "".to_string(), true) {
+                    Some(r) => r,
+                    None => {
+                        println!("Command not found!");
+                        continue
+                    }
+                };
+                println!("RESULT: {}", result);
                 if cloned_command.clone() == "newgame" {
                     game_id = result;
                     println!("Game ID set to {}", game_id);
