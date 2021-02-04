@@ -1036,10 +1036,10 @@ impl event::EventHandler for GameState {
                 self.opponent.dir = Direction::from(net_opponent[2]);
                 self.opponent.jumping = net_opponent[3] != 0.0;
                 self.opponent.current_accel = net_opponent[4];
-                if self.opponent_positions.len() <= 2 {
+                if self.opponent_positions.len() < 2 {
                     self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone())));
                 } else {
-                    self.opponent_positions.remove(1);
+                    self.opponent_positions.remove(0);
                     self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone())));
                 }
                 self.opponent.update();
@@ -1049,24 +1049,15 @@ impl event::EventHandler for GameState {
                     let opponent_x: Vec<f32> = self.opponent_positions.iter().map(|x| x.0).collect();
                     let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|y| y.1).collect();
                     let opponent_dir: Vec<f32> = self.opponent_positions.iter().map(|y| y.2).collect();
-                    let mut total_change_x = 0.0;
-                    let mut total_change_y = 0.0;
 
-                    let change_x = opponent_x.index(0)  - opponent_x.index(1);
-                    total_change_x += change_x;
-                    self.opponent.body.x += total_change_x;
+                    let change_x = opponent_x.index(1)  - opponent_x.index(0);
+                    self.opponent.body.x += change_x;
 
-                    let change_y = opponent_y.index(0)  - opponent_y.index(1);
-                    total_change_y += change_y;
-                    self.opponent.body.y += total_change_y;
+                    let change_y = opponent_y.index(1)  - opponent_y.index(0);
+
                     self.opponent.dir = Direction::from(*opponent_dir.last().unwrap());
-                    //let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|x| x.1).collect();
-                    //let change_x = opponent_x.iter().sum::<f32>() / 100.0;
-                    //let change_y = opponent_y.iter().sum::<f32>() / 100.0;
-                    //self.opponent.body.x = self.opponent.body.x + (change_x * 100.0);
-                    //self.opponent.body.y = self.opponent.body.y + (change_y * 100.0);
-                    //self.opponent_positions.remove(1);
-                    self.opponent.update();
+                    self.opponent_positions.clear();
+                    //self.opponent.update();
                 }
             }
         }
