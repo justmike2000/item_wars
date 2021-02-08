@@ -44,7 +44,7 @@ const POTION_HEIGHT: f32 = 42.0;
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 30.0;
-const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64;
+const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64; // 33 ticks per seconds
 const SEND_POS_MILLIS_PER_UPDATE: u64 = 50; // 50 = 20 ticks per sec
 const NET_MILLIS_PER_UPDATE: u64 = 50; // 20 ticks
 
@@ -867,11 +867,12 @@ struct GameState {
     last_net_update: Instant,
     last_pos_send: Instant,
     last_ready_check: Instant,
+    last_recv: Instant,
     hud: Hud,
     textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>,
     player_receiver: crossbeam_channel::Receiver<Vec<f32>>,
     player_pos_sender: crossbeam_channel::Sender<Player>,
-    opponent_positions: Vec<(f32, f32, f32)>,
+    opponent_positions: Vec<(f32, f32, f32, Instant)>,
 }
 
 impl GameState {
@@ -964,6 +965,7 @@ impl GameState {
             last_net_update: Instant::now(),
             last_pos_send: Instant::now(),
             last_ready_check: Instant::now(),
+            last_recv: Instant::now(),
             ready: false,
             textures,
             player_receiver: r,
@@ -1029,7 +1031,6 @@ impl event::EventHandler for GameState {
         } 
 
         // Get opponent
-        if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
             if let Ok(net_opponent) = self.player_receiver.try_recv() {
                 self.opponent.body.x = net_opponent[0];
                 self.opponent.body.y = net_opponent[1];
@@ -1037,30 +1038,46 @@ impl event::EventHandler for GameState {
                 self.opponent.jumping = net_opponent[3] != 0.0;
                 self.opponent.current_accel = net_opponent[4];
                 if self.opponent_positions.len() < 2 {
-                    self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone())));
+                    self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone()), Instant::now()));
                 } else {
                     self.opponent_positions.remove(0);
-                    self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone())));
+                    self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone()), Instant::now()));
                 }
                 self.opponent.update();
-            } else if self.started {
-                // Try interpoliation
-                if self.opponent_positions.len() == 2 {
-                    let opponent_x: Vec<f32> = self.opponent_positions.iter().map(|x| x.0).collect();
-                    let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|y| y.1).collect();
-                    let opponent_dir: Vec<f32> = self.opponent_positions.iter().map(|y| y.2).collect();
+                self.last_recv = Instant::now();
+            }
+            if self.started && self.opponent_positions.len() == 2 {
+                let opponent_times: Vec<Instant> = self.opponent_positions.iter().map(|y| y.3).collect();
+                let time_difference = *opponent_times.index(1) - *opponent_times.index(0);
 
-                    let change_x = opponent_x.index(1)  - opponent_x.index(0);
-                    self.opponent.body.x += change_x;
+                if Instant::now() - self.last_recv > time_difference {
+                    //if Instant::now() - self.last_recv
+                    // Try interpoliation
+                    if self.opponent_positions.len() == 2 && self.opponent.is_moving() {
+                        let opponent_x: Vec<f32> = self.opponent_positions.iter().map(|x| x.0).collect();
+                        let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|y| y.1).collect();
+                        let opponent_dir: Vec<f32> = self.opponent_positions.iter().map(|y| y.2).collect();
 
-                    let change_y = opponent_y.index(1)  - opponent_y.index(0);
+                        let change_x: f32  = opponent_x.index(1) / opponent_x.index(0);
+                        if self.opponent.body.x * change_x  >= 5.0 {
+                            //self.opponent.body.x =  self.opponent.body.x * 5.0;
+                        } else {
+                            self.opponent.body.x = self.opponent.body.x * change_x;
+                        }
 
-                    self.opponent.dir = Direction::from(*opponent_dir.last().unwrap());
-                    self.opponent_positions.clear();
-                    //self.opponent.update();
+                        let change_y = opponent_y.index(1)  / opponent_y.index(0);
+                        if self.opponent.body.y + change_y  > 5.0 {
+                            //self.opponent.body.y *= 5.0;
+                        } else {
+                            self.opponent.body.y *= change_y;
+                        }
+
+                        //self.opponent.dir = Direction::from(*opponent_dir.last().unwrap());
+                        self.opponent_positions.clear();
+                        self.opponent.update();
+                    }
                 }
             }
-        }
 
         // Countdown till all players read
         if !self.ready && Instant::now() - self.last_ready_check >= Duration::from_millis(NET_GAME_READY_CHECK) {
