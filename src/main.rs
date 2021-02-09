@@ -52,6 +52,7 @@ const NET_MILLIS_PER_UPDATE: u64 = 50; // 20 ticks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
 const NET_GAME_READY_CHECK: u64 = 100;
 
+
 #[derive(PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 struct Position {
     x: f32,
@@ -1043,10 +1044,9 @@ impl event::EventHandler for GameState {
                     self.opponent_positions.remove(0);
                     self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone()), Instant::now()));
                 }
-                self.opponent.update();
+                //self.opponent.update();
                 self.last_recv = Instant::now();
-            }
-            if self.started && self.opponent_positions.len() == 2 {
+            } else if self.started && self.opponent_positions.len() == 2 {
                 let opponent_times: Vec<Instant> = self.opponent_positions.iter().map(|y| y.3).collect();
                 let time_difference = *opponent_times.index(1) - *opponent_times.index(0);
 
@@ -1059,22 +1059,18 @@ impl event::EventHandler for GameState {
                         let opponent_dir: Vec<f32> = self.opponent_positions.iter().map(|y| y.2).collect();
 
                         let change_x: f32  = opponent_x.index(1) / opponent_x.index(0);
-                        if self.opponent.body.x * change_x  >= 5.0 {
-                            //self.opponent.body.x =  self.opponent.body.x * 5.0;
-                        } else {
+                        if change_x != 1.0 && change_x < 5.0 {
                             self.opponent.body.x = self.opponent.body.x * change_x;
+                        } else if change_x >= 5.0 {
+                            self.opponent.body.x = self.opponent.body.x * 5.0;
                         }
-
-                        let change_y = opponent_y.index(1)  / opponent_y.index(0);
-                        if self.opponent.body.y + change_y  > 5.0 {
-                            //self.opponent.body.y *= 5.0;
-                        } else {
-                            self.opponent.body.y *= change_y;
+                        let change_y: f32  = opponent_y.index(1) / opponent_y.index(0);
+                        if change_y != 1.0 && change_y < 5.0 {
+                            self.opponent.body.y = self.opponent.body.y * change_y;
+                        } else if change_y >= 5.0 {
+                            self.opponent.body.y = self.opponent.body.y * 5.0;
                         }
-
-                        //self.opponent.dir = Direction::from(*opponent_dir.last().unwrap());
                         self.opponent_positions.clear();
-                        self.opponent.update();
                     }
                 }
             }
