@@ -282,7 +282,7 @@ impl Player {
         self.dir.up || self.dir.down || self.dir.left || self.dir.right
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, do_move: bool) {
         if self.jumping {
             if self.jump_direction && self.jump_offset < PLAYER_JUMP_HEIGHT {
                 self.jump_offset += 0.1;
@@ -298,10 +298,12 @@ impl Player {
         } else {
             self.jump_offset = 0.0;
         }
-        if self.is_moving() {
-            self.move_direction()
-        } else if self.current_accel > PLAYER_STARTING_ACCEL {
-            self.move_direction_cooldown()
+        if do_move {
+            if self.is_moving() {
+                self.move_direction()
+            } else if self.current_accel > PLAYER_STARTING_ACCEL {
+                self.move_direction_cooldown()
+            }
         }
         //if self.eats(food) && !self.jumping {
         //    self.ate = Some(food.clone());
@@ -1070,6 +1072,7 @@ impl event::EventHandler for GameState {
                         } else if change_y >= 5.0 {
                             self.opponent.body.y = self.opponent.body.y * 5.0;
                         }
+                        self.opponent.reset_last_dir();
                         self.opponent_positions.clear();
                     }
                 }
@@ -1094,7 +1097,8 @@ impl event::EventHandler for GameState {
         // Send pos
         if Instant::now() - self.last_draw_update >= Duration::from_millis(DRAW_MILLIS_PER_UPDATE) {
             if !self.gameover {
-                self.player.update();
+                self.player.update(true);
+                self.opponent.update(false);
             }
             self.last_draw_update = Instant::now();
         }
