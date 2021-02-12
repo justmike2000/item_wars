@@ -45,8 +45,8 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 60.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64; 
-const SEND_POS_MILLIS_PER_UPDATE: u64 = 16; // 50 = 20 ticks per sec
-const NET_MILLIS_PER_UPDATE: u64 = 16; // 20 ticks
+const SEND_POS_MILLIS_PER_UPDATE: u64 = 10; // 50 = 20 ticks per sec
+const NET_MILLIS_PER_UPDATE: u64 = 10; // 20 ticks
 
 // checks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
@@ -1060,20 +1060,22 @@ impl event::EventHandler for GameState {
                         let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|y| y.1).collect();
                         let opponent_dir: Vec<f32> = self.opponent_positions.iter().map(|y| y.2).collect();
 
-                        let change_x: f32  = opponent_x.index(1) / opponent_x.index(0);
-                        if change_x != 1.0 && change_x < 5.0 {
-                            self.opponent.body.x = self.opponent.body.x * change_x;
-                        } else if change_x >= 5.0 {
-                            //self.opponent.body.x = self.opponent.body.x * 5.0;
+                        let mut change_x: f32  = opponent_x.index(1) / opponent_x.index(0);
+                        if change_x > PLAYER_MOVE_SPEED {
+                            change_x = PLAYER_MOVE_SPEED;
                         }
-                        let change_y: f32  = opponent_y.index(1) / opponent_y.index(0);
-                        if change_y != 1.0 && change_y < 5.0 {
-                            self.opponent.body.y = self.opponent.body.y * change_y;
-                        } else if change_y >= 5.0 {
-                            //self.opponent.body.y = self.opponent.body.y * 5.0;
+                        self.opponent.body.x = self.opponent.body.x * change_x;
+
+                        let mut change_y: f32  = opponent_y.index(1) / opponent_y.index(0);
+                        if change_y > PLAYER_MOVE_SPEED {
+                            change_y = PLAYER_MOVE_SPEED;
                         }
-                        self.opponent.reset_last_dir();
-                        self.opponent_positions.clear();
+                        self.opponent.body.y = self.opponent.body.y * change_y;
+
+                        //self.opponent.reset_last_dir();
+                        //self.opponent_positions.clear();
+                        self.opponent_positions.remove(0);
+                        self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone()), Instant::now()));
                     }
                 }
             }
