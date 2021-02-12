@@ -1074,8 +1074,8 @@ impl event::EventHandler for GameState {
 
                         //self.opponent.reset_last_dir();
                         //self.opponent_positions.clear();
-                        self.opponent_positions.remove(0);
-                        self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone()), Instant::now()));
+                        //self.opponent_positions.remove(0);
+                        //self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone()), Instant::now()));
                     }
                 }
             }
