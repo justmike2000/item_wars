@@ -30,7 +30,7 @@ const MAX_PLAYERS: usize = 2;
 const PLAYER_MAX_HP: i64 = 100;
 const PLAYER_MAX_MP: i64 = 30;
 const PLAYER_MAX_STR: i64 = 10;
-const PLAYER_MOVE_SPEED: f32 = 3.0;
+const PLAYER_MOVE_SPEED: f32 = 1.0;
 const PLAYER_TOP_ACCEL_SPEED: f32 = 5.0;
 const PLAYER_ACCEL_SPEED: f32 = 0.2;
 const PLAYER_STARTING_ACCEL: f32 = 0.4;
@@ -43,10 +43,10 @@ const POTION_HEIGHT: f32 = 42.0;
 
 const MAP_CURRENT_FRICTION: f32 = 5.0;
 
-const UPDATES_PER_SECOND: f32 = 30.0;
-const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64; // 33 ticks per seconds
-const SEND_POS_MILLIS_PER_UPDATE: u64 = 33; // 50 = 20 ticks per sec
-const NET_MILLIS_PER_UPDATE: u64 = 33; // 20 ticks
+const UPDATES_PER_SECOND: f32 = 60.0;
+const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64; 
+const SEND_POS_MILLIS_PER_UPDATE: u64 = 16; // 50 = 20 ticks per sec
+const NET_MILLIS_PER_UPDATE: u64 = 16; // 20 ticks
 
 // checks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
@@ -952,8 +952,8 @@ impl GameState {
         let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
         let opponent = Player::new(player_name.clone(), opponent_pos, Some(player_texture.clone()));
 
-        let (s, r) = bounded(1000);
-        let (player_pos_sender, player_pos_receiver) = bounded(1000);
+        let (s, r) = bounded(1);
+        let (player_pos_sender, player_pos_receiver) = bounded(1);
 
         let game_state = GameState {
             player: player.clone(),
@@ -1064,13 +1064,13 @@ impl event::EventHandler for GameState {
                         if change_x != 1.0 && change_x < 5.0 {
                             self.opponent.body.x = self.opponent.body.x * change_x;
                         } else if change_x >= 5.0 {
-                            self.opponent.body.x = self.opponent.body.x * 5.0;
+                            //self.opponent.body.x = self.opponent.body.x * 5.0;
                         }
                         let change_y: f32  = opponent_y.index(1) / opponent_y.index(0);
                         if change_y != 1.0 && change_y < 5.0 {
                             self.opponent.body.y = self.opponent.body.y * change_y;
                         } else if change_y >= 5.0 {
-                            self.opponent.body.y = self.opponent.body.y * 5.0;
+                            //self.opponent.body.y = self.opponent.body.y * 5.0;
                         }
                         self.opponent.reset_last_dir();
                         self.opponent_positions.clear();
@@ -1102,7 +1102,7 @@ impl event::EventHandler for GameState {
             }
             self.last_draw_update = Instant::now();
         }
-        if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) {
+        if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) && (self.player.is_moving() || self.player.jumping) {
             let _ = self.player_pos_sender.send(self.player.clone());
             self.last_pos_send = Instant::now();
         }
