@@ -46,7 +46,7 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 const UPDATES_PER_SECOND: f32 = 60.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64; 
 const SEND_POS_MILLIS_PER_UPDATE: u64 = 10; // 50 = 20 ticks per sec
-const NET_MILLIS_PER_UPDATE: u64 = 10; // 20 ticks
+const NET_MILLIS_PER_UPDATE: u64 = 1; // 20 ticks
 
 // checks
 const NET_GAME_START_CHECK_MILLIS: u64 = 500;
@@ -952,8 +952,8 @@ impl GameState {
         let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
         let opponent = Player::new(player_name.clone(), opponent_pos, Some(player_texture.clone()));
 
-        let (s, r) = bounded(1);
-        let (player_pos_sender, player_pos_receiver) = bounded(1);
+        let (s, r) = bounded(10000);
+        let (player_pos_sender, player_pos_receiver) = bounded(10000);
 
         let game_state = GameState {
             player: player.clone(),
@@ -1072,8 +1072,8 @@ impl event::EventHandler for GameState {
                         }
                         self.opponent.body.y = self.opponent.body.y * change_y;
 
-                        //self.opponent.reset_last_dir();
-                        //self.opponent_positions.clear();
+                        self.opponent.reset_last_dir();
+                        self.opponent_positions.clear();
                         //self.opponent_positions.remove(0);
                         //self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone()), Instant::now()));
                     }
@@ -1104,9 +1104,10 @@ impl event::EventHandler for GameState {
             }
             self.last_draw_update = Instant::now();
         }
-        if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) && (self.player.is_moving() || self.player.jumping) {
+        //if Instant::now() - self.last_pos_send >= Duration::from_millis(SEND_POS_MILLIS_PER_UPDATE) && (self.player.is_moving() || self.player.jumping) {
+        if self.player.is_moving() || self.player.jumping {
             let _ = self.player_pos_sender.send(self.player.clone());
-            self.last_pos_send = Instant::now();
+            //self.last_pos_send = Instant::now();
         }
         Ok(())
     }
