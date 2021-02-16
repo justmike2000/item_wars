@@ -45,7 +45,6 @@ const MAP_CURRENT_FRICTION: f32 = 5.0;
 
 const UPDATES_PER_SECOND: f32 = 60.0;
 const DRAW_MILLIS_PER_UPDATE: u64 = (1.0 / UPDATES_PER_SECOND * 1000.0) as u64; 
-const SEND_POS_MILLIS_PER_UPDATE: u64 = 10; // 50 = 20 ticks per sec
 const NET_MILLIS_PER_UPDATE: u64 = 1; // 20 ticks
 
 // checks
@@ -84,24 +83,25 @@ struct Direction {
 impl From<Direction> for f32 {
     fn from(dir: Direction) -> f32 {
         if dir.up {
-            return 0.0
+            0.0
         } else if dir.down {
-            return 1.0
+            1.0
         } else if dir.left {
-            return 2.0
+            2.0
         } else {
-            return 3.0
+            3.0
         }
     }
 }
 
 impl From<f32> for Direction {
     fn from(item: f32) -> Self {
+        let error_margin = 1.0;
         if item == 0.0 {
             Direction { up: true, down: false, left: false, right: false }
-        } else if item == 1.0 {
+        } else if (item - 1.0).abs() < error_margin {
             Direction { up: false, down: true, left: false, right: false }
-        } else if item == 2.0 {
+        } else if (item - 2.0).abs() < error_margin {
             Direction { up: false, down: false, left: true, right: false }
         } else {
             Direction { up: false, down: false, left: false, right: true }
@@ -210,7 +210,7 @@ impl Player {
             hp: PLAYER_MAX_HP,
             mp: PLAYER_MAX_MP,
             str: PLAYER_MAX_STR,
-            texture: texture,
+            texture,
             jumping: false,
             jump_offset: 0.0,
             jump_direction: true,
@@ -384,13 +384,12 @@ impl Player {
         graphics::draw(ctx, &black_rectangle, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
 
         let player_name = graphics::Text::new(graphics::TextFragment {
-            text: format!("{}", self.name),
+            text: self.name.clone(),
             color: Some(graphics::Color::new(1.0, 1.0, 1.0, 1.0)),
             // `Font` is a handle to a loaded TTF, stored inside the `Context`.
             // `Font::default()` always exists and maps to DejaVuSerif.
             font: Some(graphics::Font::default()),
             scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
-            ..Default::default()
         });
         let player_hp = graphics::Text::new(graphics::TextFragment {
             text: format!("{}", self.hp),
@@ -399,7 +398,6 @@ impl Player {
             // `Font::default()` always exists and maps to DejaVuSerif.
             font: Some(graphics::Font::default()),
             scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
-            ..Default::default()
         });
         let player_mp = graphics::Text::new(graphics::TextFragment {
             text: format!("{}", self.mp),
@@ -408,7 +406,6 @@ impl Player {
             // `Font::default()` always exists and maps to DejaVuSerif.
             font: Some(graphics::Font::default()),
             scale: Some(graphics::PxScale { x: 15.0, y: 15.0 }),
-            ..Default::default()
         });
         graphics::queue_text(ctx, &player_name, ggez::mint::Point2 { x: self.body.x - (self.name.chars().count() as f32) + 5.0, y: self.body.y - GRID_CELL_SIZE - 10.0 }, None);
         graphics::queue_text(ctx, &player_hp, ggez::mint::Point2 { x: self.body.x - (GRID_CELL_SIZE / 2.0) + 5.0, y: self.body.y - GRID_CELL_SIZE + 5.0 }, None);
@@ -473,7 +470,6 @@ impl Hud {
                 // `Font::default()` always exists and maps to DejaVuSerif.
                 font: Some(graphics::Font::default()),
                 scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
-                ..Default::default()
             });
         let hp_text = graphics::Text::new(graphics::TextFragment {
                 text: format!("{}", player.hp),
@@ -482,7 +478,6 @@ impl Hud {
                 // `Font::default()` always exists and maps to DejaVuSerif.
                 font: Some(graphics::Font::default()),
                 scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
-                ..Default::default()
             });
         let str_text = graphics::Text::new(graphics::TextFragment {
                 text: format!("{}", player.str),
@@ -491,7 +486,6 @@ impl Hud {
                 // `Font::default()` always exists and maps to DejaVuSerif.
                 font: Some(graphics::Font::default()),
                 scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
-                ..Default::default()
             });
         let mp_text = graphics::Text::new(graphics::TextFragment {
                 text: format!("{}", player.mp),
@@ -500,7 +494,6 @@ impl Hud {
                 // `Font::default()` always exists and maps to DejaVuSerif.
                 font: Some(graphics::Font::default()),
                 scale: Some(graphics::PxScale { x: 30.0, y: 30.0 }),
-                ..Default::default()
             });
         graphics::queue_text(ctx, &str_text, ggez::mint::Point2 { x: 130.0, y: SCREEN_SIZE.1 - GRID_CELL_SIZE }, None);
         graphics::queue_text(ctx, &mp_text, ggez::mint::Point2 { x: 70.0, y: SCREEN_SIZE.1 - GRID_CELL_SIZE }, None);
@@ -534,40 +527,41 @@ enum NetActions {
 impl NetActions {
     fn from_string(action: String) -> NetActions {
         if action == "sendposition" {
-            return NetActions::Sendposition
+            NetActions::Sendposition
         } else if action == "newgame" {
-            return NetActions::Newgame
+            NetActions::Newgame
         } else if action == "listgames" {
-            return NetActions::Listgames
+            NetActions::Listgames
         } else if action == "ready" {
-            return NetActions::Ready
+            NetActions::Ready
         } else if action == "getworld" {
-            return NetActions::Getworld
+            NetActions::Getworld
         } else if action == "getopponent" {
-            return NetActions::Getopponent
+            NetActions::Getopponent
         } else if action == "joingame" {
-            return NetActions::Joingame
+            NetActions::Joingame
+        } else {
+            NetActions::Unknown
         }
-        NetActions::Unknown
     }
 
     fn from_usize(action: usize) -> NetActions {
         if action == 1 {
-            return NetActions::Sendposition
+            NetActions::Sendposition
         } else if action == 2 {
-            return NetActions::Newgame
+            NetActions::Newgame
         } else if action == 3 {
-            return NetActions::Listgames
+            NetActions::Listgames
         } else if action == 4 {
-            return NetActions::Ready
+            NetActions::Ready
         } else if action == 5 {
-            return NetActions::Getworld
+            NetActions::Getworld
         } else if action == 6 {
-            return NetActions::Getopponent
+            NetActions::Getopponent
         } else if action == 7 {
-            return NetActions::Joingame
+            NetActions::Joingame
         } else {
-            return NetActions::Unknown
+            NetActions::Unknown
         }
     }
 }
@@ -575,21 +569,21 @@ impl NetActions {
 impl Into<usize> for NetActions {
     fn into(self) -> usize {
         if self == NetActions::Sendposition {
-            return 1
+            1
         } else if self == NetActions::Newgame {
-            return 2
+            2
         } else if self == NetActions::Listgames {
-            return 3
+            3
         } else if self == NetActions::Ready {
-            return 4
+            4
         } else if self == NetActions::Getworld {
-            return 5
+            5
         } else if self == NetActions::Getopponent {
-            return 6
+            6
         } else if self == NetActions::Joingame {
-            return 7
+            7
         } else {
-            return 0
+            0
         }
     }
 }
@@ -691,7 +685,7 @@ impl GameServer {
         //    packet_time - MAX_LAG > epoch_time {
         //        return
         //}
-        let keys: Vec<&str> = request[0..amt].split(":").into_iter().collect();
+        let keys: Vec<&str> = request[0..amt].split(':').into_iter().collect();
         let game_id = keys[0];
         let player = keys[1];
         let command = NetActions::from_usize(keys[2].parse::<i32>().unwrap() as usize);
@@ -716,21 +710,21 @@ impl GameServer {
                 let _ = socket.send_to(result.as_bytes(), addr);
             },
             NetActions::Getworld => {
-                if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+                if let Some(game) = self.games.iter().find(|g| g.session_id == game_id) {
                     let _ = socket.send_to(json!(game).to_string().as_bytes(), addr);
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
             },
             NetActions::Joingame => {
-                if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
+                if let Some(game) = self.games.iter_mut().find(|g| g.session_id == game_id) {
                     if game.players.len() < MAX_PLAYERS {
-                        let player_pos = if game.players.len() == 0 {
+                        let player_pos = if game.players.is_empty() {
                             Position { x: 100.0, y: 250.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT }
                         } else {
                             Position { x: 500.0, y: 250.0, w: PLAYER_CELL_WIDTH, h: PLAYER_CELL_HEIGHT }
                         };
-                        let new_player = Player::new(player.clone().to_string(), player_pos, None);
+                        let new_player = Player::new(player.to_string(), player_pos, None);
                         game.players.push(new_player);
                         if game.players.len() == MAX_PLAYERS {
                             println!("Starting game {}", game.session_id);
@@ -745,13 +739,13 @@ impl GameServer {
                 }
             },
             NetActions::Ready => {
-                if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
+                if let Some(game) = self.games.iter_mut().find(|g| g.session_id == game_id) {
                     for game_player in  game.players.iter_mut() {
                         if game_player.name == player {
                             game_player.ready = true;
                         }
                     }
-                    let ready = game.players.iter().filter(|p| p.ready).cloned().collect::<Vec<Player>>().len() == 2;
+                    let ready = game.players.iter().filter(|p| p.ready).count() == 2;
                     let result = json!({"ready": ready});
                     let _ = socket.send_to(result.to_string().as_bytes(), addr);
                 } else {
@@ -759,8 +753,8 @@ impl GameServer {
                 }
             },
             NetActions::Sendposition => {
-                if let Some(game) = self.games.iter_mut().find(|g| &g.session_id == game_id) {
-                    if let Some(player) = game.players.iter_mut().find(|p| &p.name == player) {
+                if let Some(game) = self.games.iter_mut().find(|g| g.session_id == game_id) {
+                    if let Some(player) = game.players.iter_mut().find(|p| p.name == player) {
                         let update_player: Vec<f32> = serde_json::from_str(meta).unwrap();
                         //*player = update_player;
                         player.body.x = update_player[0];
@@ -770,14 +764,14 @@ impl GameServer {
                         player.animation_frame = update_player[4];
                         player.last_dir = Direction::from(update_player[5]);
                     }
-                    return
+                    //return
                     // json!(game)
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
             },
             NetActions::Getopponent => {
-                if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
+                if let Some(game) = self.games.iter().find(|g| g.session_id == game_id) {
                     if let Some(player) = game.players.iter().find(|p| p.name != player) {
                         let result = json!({"opponent": vec![player.body.x,
                                                              player.body.y,
@@ -818,16 +812,16 @@ impl GameServer {
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> Option<String> {
         let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
         socket.set_nonblocking(!block).unwrap();
-        let _ = socket.connect(host.clone());
+        let _ = socket.connect(host);
 
         //println!("Successfully connected to server {}", host);
     
         //let epoch_time: String = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
 
-        let net_action: usize = NetActions::from_string(msg.clone()).into();
-        let msg = format!("{}:{}:{}:{}", game_id.clone(), player.clone(), net_action, meta.clone());
+        let net_action: usize = NetActions::from_string(msg).into();
+        let msg = format!("{}:{}:{}:{}", game_id, player, net_action, meta);
 
-        match socket.send(&Bytes::from(msg.clone())) {
+        match socket.send(&Bytes::from(msg)) {
             Ok(_) => (),
             Err(_e) => {
                 return None
@@ -849,7 +843,7 @@ impl GameServer {
         match socket.recv(&mut buf) {
             Ok(size) => Some(String::from_utf8_lossy(&buf[0..size]).to_string()),
             Err(_e) => {
-                return None
+                None
                 //format!("Failed to connect: {}", e)
             }
         }
@@ -881,12 +875,12 @@ struct GameState {
 impl GameState {
 
     fn join_game(host: String, player: String, game_id: String) -> String {
-        let msg = format!("joingame");
+        let msg = "joingame".to_string();
         GameServer::send_message(host, game_id, player, msg, "".to_string(), true).unwrap()
     }
 
     fn send_ready(server: String, player: String, game_id: String) -> String {
-        let msg = format!("ready");
+        let msg = "ready".to_string();
         GameServer::send_message(server, game_id, player, msg, "".to_string(), true).unwrap()
     }
 
@@ -908,7 +902,7 @@ impl GameState {
     }
 
     fn get_world_state(server: String, player: String, game_id: String) -> Option<NetworkedGame> {
-        let msg = format!("getworld");
+        let msg = "getworld".to_string();
         let result = GameServer::send_message(server, game_id, player, msg, "".to_string(), true).unwrap();
         match serde_json::from_str(&result) {
             Ok(r) => Some(r),
@@ -921,10 +915,10 @@ impl GameState {
 
     fn send_position(server: String, player: Player, game_id: String) {
         let meta_position = vec![player.body.x, player.body.y, player.dir.into(), player.jumping as u8 as f32, player.animation_frame, player.last_dir.into()];
-        GameServer::send_message(server, game_id, player.name.clone(), "sendposition".to_string(), json!(meta_position).to_string(), false);
+        GameServer::send_message(server, game_id, player.name, "sendposition".to_string(), json!(meta_position).to_string(), false);
     }
 
-    pub fn new<'a>(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
+    pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
 
         //let game_server = GameServer::new(host.clone());
         //std::thread::sleep(std::time::Duration::from_millis(1000));
@@ -950,14 +944,14 @@ impl GameState {
             }
         }
         let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
-        let opponent = Player::new(player_name.clone(), opponent_pos, Some(player_texture.clone()));
+        let opponent = Player::new(player_name, opponent_pos, Some(player_texture));
 
-        let (s, r) = bounded(10000);
-        let (player_pos_sender, player_pos_receiver) = bounded(10000);
+        let (s, r) = bounded(1);
+        let (player_pos_sender, player_pos_receiver) = bounded(1);
 
         let game_state = GameState {
             player: player.clone(),
-            opponent: opponent,
+            opponent,
             server: host.clone(),
             game_id: game_id.clone(),
             food: Potion::new(food_pos, PotionType::Health, potion_texture),
@@ -972,14 +966,12 @@ impl GameState {
             ready: false,
             textures,
             player_receiver: r,
-            player_pos_sender: player_pos_sender,
+            player_pos_sender,
             opponent_positions: vec![],
         };
 
         let threaded_host_pos = host.clone();
         let threaded_game_id = game_id.clone();
-        let threaded_host = host.clone();
-        let threaded_player = player.clone();
 
         std::thread::spawn(move || {
             loop {
@@ -999,7 +991,7 @@ impl GameState {
                 if Instant::now() - last_net_update >= Duration::from_millis(NET_MILLIS_PER_UPDATE) {
                    
                     //let get_world = GameState::get_world_state(threaded_host.clone(), threaded_player.name.clone(), game_id.clone()).unwrap();
-                    if let Some(opponent) = GameState::get_opponent(threaded_host.clone(), threaded_player.name.clone(), game_id.clone()) {
+                    if let Some(opponent) = GameState::get_opponent(host.clone(), player.name.clone(), game_id.clone()) {
                         match s.send(opponent) {
                             Ok(_) => (),
                             Err (e) => {
@@ -1058,19 +1050,19 @@ impl event::EventHandler for GameState {
                     if self.opponent_positions.len() == 2 && self.opponent.is_moving() {
                         let opponent_x: Vec<f32> = self.opponent_positions.iter().map(|x| x.0).collect();
                         let opponent_y: Vec<f32> = self.opponent_positions.iter().map(|y| y.1).collect();
-                        let opponent_dir: Vec<f32> = self.opponent_positions.iter().map(|y| y.2).collect();
+                        let _opponent_dir: Vec<f32> = self.opponent_positions.iter().map(|y| y.2).collect();
 
                         let mut change_x: f32  = opponent_x.index(1) / opponent_x.index(0);
                         if change_x > PLAYER_MOVE_SPEED {
                             change_x = PLAYER_MOVE_SPEED;
                         }
-                        self.opponent.body.x = self.opponent.body.x * change_x;
+                        self.opponent.body.x *= change_x;
 
                         let mut change_y: f32  = opponent_y.index(1) / opponent_y.index(0);
                         if change_y > PLAYER_MOVE_SPEED {
                             change_y = PLAYER_MOVE_SPEED;
                         }
-                        self.opponent.body.y = self.opponent.body.y * change_y;
+                        self.opponent.body.y *= change_y;
 
                         self.opponent.reset_last_dir();
                         self.opponent_positions.clear();
@@ -1124,7 +1116,7 @@ impl event::EventHandler for GameState {
             // Then we tell the player and the items to draw themselves
             self.opponent.draw(ctx)?;
             self.player.draw(ctx)?;
-            //self.food.draw(ctx)?;
+            self.food.draw(ctx)?;
             self.hud.draw(ctx, &self.player)?;
         }
          
@@ -1184,8 +1176,8 @@ fn main() -> GameResult {
         .get_matches();
 
     // if hosting
-    if let Some(server) = matches.clone().value_of("host") {
-        let safe_server = server.clone().to_string();
+    if let Some(server) = matches.value_of("host") {
+        let safe_server = server.to_string();
         std::thread::spawn(move || {
             let mut gameserver = GameServer::new(safe_server);
             gameserver.host();
@@ -1211,7 +1203,7 @@ fn main() -> GameResult {
             } else if command == "exit" {
                 panic!("Exit");
             } else {
-                let result = match GameServer::send_message(server.clone().to_string(),
+                let result = match GameServer::send_message(server.to_string(),
                                                       game_id.clone(), player.to_string(), command, "".to_string(), true) {
                     Some(r) => r,
                     None => {
@@ -1227,7 +1219,9 @@ fn main() -> GameResult {
             }
         }
     } else if let Some(list) = matches.clone().value_of("list") {
-       let games = GameServer::send_message(list.clone().to_string(), "".to_string(), "".to_string(), "listgames".to_string(), "".to_string(), true);
+       let games = GameServer::send_message(list.to_string(),
+                                            "".to_string(), "".to_string(), "listgames".to_string(),
+                                            "".to_string(), true);
        println!("{:?}", games);
        Ok(())
     } else {
