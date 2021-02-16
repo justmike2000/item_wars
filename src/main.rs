@@ -521,6 +521,7 @@ enum NetActions {
     Getworld,
     Joingame,
     Getopponent,
+    GetopponentName,
     Unknown
 }
 
@@ -540,6 +541,8 @@ impl NetActions {
             NetActions::Getopponent
         } else if action == "joingame" {
             NetActions::Joingame
+        } else if action == "getopponentname" {
+            NetActions::GetopponentName
         } else {
             NetActions::Unknown
         }
@@ -560,6 +563,8 @@ impl NetActions {
             NetActions::Getopponent
         } else if action == 7 {
             NetActions::Joingame
+        } else if action == 8 {
+            NetActions::GetopponentName
         } else {
             NetActions::Unknown
         }
@@ -582,6 +587,8 @@ impl Into<usize> for NetActions {
             6
         } else if self == NetActions::Joingame {
             7
+        } else if self == NetActions::GetopponentName {
+            8
         } else {
             0
         }
@@ -721,6 +728,13 @@ impl GameServer {
                     println!("Invalid Game {}", game_id);
                 }
             },
+            NetActions::GetopponentName => {
+                if let Some(game) = self.games.iter_mut().find(|g| g.session_id == game_id) {
+                    if let Some(player) = game.players.iter_mut().find(|p| p.name != player) {
+                        let _ = socket.send_to(player.name.as_bytes(), addr);
+                    }
+                }
+            },
             NetActions::Getopponent => {
                 if let Some(game) = self.games.iter().find(|g| g.session_id == game_id) {
                     if let Some(player) = game.players.iter().find(|p| p.name != player) {
@@ -829,6 +843,11 @@ impl GameState {
         None
     }
 
+    fn get_opponent_name(server: String, player: String, game_id: String) -> String {
+        let msg = "getopponentname".to_string();
+        GameServer::send_message(server, game_id, player, msg, "".to_string(), true).unwrap()
+    }
+
     fn get_world_state(server: String, player: String, game_id: String) -> Option<NetworkedGame> {
         let msg = "getworld".to_string();
         let result = GameServer::send_message(server, game_id, player, msg, "".to_string(), true).unwrap();
@@ -868,8 +887,8 @@ impl GameState {
                 player_pos.y = game_state_player.body.y;
             }
         }
-        let player = Player::new(player_name.clone(), player_pos, Some(player_texture.clone()));
-        let opponent = Player::new(player_name, opponent_pos, Some(player_texture));
+        let player = Player::new(player_name, player_pos, Some(player_texture.clone()));
+        let opponent = Player::new("".to_string(), opponent_pos, Some(player_texture));
 
         let (s, r) = bounded(1);
         let (player_pos_sender, player_pos_receiver) = bounded(1);
@@ -942,6 +961,9 @@ impl event::EventHandler for GameState {
                     self.last_net_update = Instant::now();
                     return Ok(())
                 } else {
+                    // Get opponent name
+                    let opponent_name = GameState::get_opponent_name(self.server.clone(), self.player.name.clone(), self.game_id.clone());
+                    self.opponent.name = opponent_name;
                     println!("Game started!");
                     self.started = true
                 }
