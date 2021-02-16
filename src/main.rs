@@ -261,21 +261,21 @@ impl Player {
     }
 
     fn move_direction_cooldown(&mut self) {
-            if self.last_dir.up && self.body.y > PLAYER_CELL_HEIGHT {
-                self.body.y -= PLAYER_MOVE_SPEED + self.current_accel;
-            }
-            if self.last_dir.down && self.body.y < SCREEN_SIZE.1 - (PLAYER_CELL_HEIGHT * 2.0) {
-                self.body.y += PLAYER_MOVE_SPEED + self.current_accel;
-            }
-            if self.last_dir.left && self.body.x > 0.0 {
-                self.body.x -= PLAYER_MOVE_SPEED + self.current_accel;
-            }
-            if self.last_dir.right && self.body.x < SCREEN_SIZE.0 - PLAYER_CELL_WIDTH {
-                self.body.x += PLAYER_MOVE_SPEED + self.current_accel;
-            }
-            if self.current_accel > 0.0 {
-                self.current_accel -= PLAYER_ACCEL_SPEED * MAP_CURRENT_FRICTION;
-            }
+        if self.last_dir.up && self.body.y > PLAYER_CELL_HEIGHT {
+            self.body.y -= PLAYER_MOVE_SPEED + self.current_accel;
+        }
+        if self.last_dir.down && self.body.y < SCREEN_SIZE.1 - (PLAYER_CELL_HEIGHT * 2.0) {
+            self.body.y += PLAYER_MOVE_SPEED + self.current_accel;
+        }
+        if self.last_dir.left && self.body.x > 0.0 {
+            self.body.x -= PLAYER_MOVE_SPEED + self.current_accel;
+        }
+        if self.last_dir.right && self.body.x < SCREEN_SIZE.0 - PLAYER_CELL_WIDTH {
+            self.body.x += PLAYER_MOVE_SPEED + self.current_accel;
+        }
+        if self.current_accel > 0.0 {
+            self.current_accel -= PLAYER_ACCEL_SPEED * MAP_CURRENT_FRICTION;
+        }
     }
 
     fn is_moving(&self) -> bool {
@@ -615,7 +615,6 @@ impl NetworkedGame {
             completed: false
         }
     }
-
 }
 
 pub struct GameServer {
