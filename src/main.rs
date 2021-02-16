@@ -632,66 +632,20 @@ impl GameServer {
         let mut socket = UdpSocket::bind(self.hostname.clone()).unwrap();
 
         loop {
-            let mut buf = [0; 2_000];
-            //let mut buf = vec![];
+            let mut buf = [0; 65_000];
             let (amt, src) = socket.recv_from(&mut buf).unwrap();
             let result = String::from_utf8(buf.to_vec()).unwrap();
             self.handle_connection(result, &mut socket, src, amt);
-
-            // <TODO>
-            //for stream in listener.incoming() {
-            //   match stream {
-            //       Ok(mut stream_result) => {
-            //           let mut reader = io::BufReader::new(&mut stream_result);
-            //           let received: Vec<u8> = reader.fill_buf().unwrap().to_vec();
-            //           reader.consume(received.len());
-            //           let result = String::from_utf8(received).unwrap();
-            //           self.handle_connection(result, &mut stream_result);
-            //           //match stream_result.read(&mut buf) {
-            //           //    Ok(size) => {
-            //           //        let request = String::from_utf8_lossy(&mut buf[0..size]);
-            //           //        self.handle_connection(request.to_string(), &mut stream_result);
-            //           //    },
-            //           //    Err(_) => {
-
-            //           //    }
-            //           //}
-            //       },
-            //       Err(e) => {
-            //           println!("couldn't recieve: {}", e);
-            //       }
-            //    }
-            // }
         }
     }
 
     fn handle_connection(&mut self, request: String, socket: &mut UdpSocket, addr: SocketAddr, amt: usize) {
-        //println!("SIZE: {}", request.len());
-        //println!("REQUEST: {:?}", request);
-        //let parsed_request: serde_json::Value = match serde_json::from_str(&request) {
-        //    Ok(r) => r,
-        //    Err(e) => {
-        //        println!("Invalid request {} - {}", request, e);
-        //        return 
-        //    }
-        //};
-        //println!("Received request: {}", request);
-        //let packet_time: u128 = parsed_request["time"].as_str().unwrap().parse::<u128>().unwrap();
-        ////println!("{}", packet_time);
-
-        //let epoch_time: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
-
-        //if packet_time + MAX_LAG < epoch_time ||
-        //    packet_time - MAX_LAG > epoch_time {
-        //        return
-        //}
         let keys: Vec<&str> = request[0..amt].split(':').into_iter().collect();
         let game_id = keys[0];
         let player = keys[1];
         let command = NetActions::from_usize(keys[2].parse::<i32>().unwrap() as usize);
         let meta = keys[3];
 
-        //let data = match parsed_request["command"].as_str() {
         match command {
             NetActions::Newgame => {
                 let mut count = self.game_count.parse::<i32>().unwrap();
@@ -756,7 +710,6 @@ impl GameServer {
                 if let Some(game) = self.games.iter_mut().find(|g| g.session_id == game_id) {
                     if let Some(player) = game.players.iter_mut().find(|p| p.name == player) {
                         let update_player: Vec<f32> = serde_json::from_str(meta).unwrap();
-                        //*player = update_player;
                         player.body.x = update_player[0];
                         player.body.y = update_player[1];
                         player.dir = Direction::from(update_player[2]);
@@ -764,8 +717,6 @@ impl GameServer {
                         player.animation_frame = update_player[4];
                         player.last_dir = Direction::from(update_player[5]);
                     }
-                    //return
-                    // json!(game)
                 } else {
                     println!("Invalid Game {}", game_id);
                 }
@@ -791,32 +742,12 @@ impl GameServer {
                 let _ = socket.send_to("Invalid Command".as_bytes(), addr);
             }
         }
-
-        //    Some("getworld") => {
-        //        let game_id = parsed_request["game_id"].as_str().unwrap_or("");
-        //        if let Some(game) = self.games.iter().find(|g| &g.session_id == game_id) {
-        //            json!(game)
-        //        } else {
-        //            json!({"error": format!("Invalid Game {}", game_id)})
-        //        }
-        //    },
-        //    _ => {
-        //        json!({
-        //            "error": "Invalid Command",
-        //        })
-        //    }
-        //};
-        //let _ = socket.write_all(data.to_string().as_bytes()).unwrap();
     }
 
     fn send_message(host: String, game_id: String, player: String, msg: String, meta: String, block: bool) -> Option<String> {
         let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
         socket.set_nonblocking(!block).unwrap();
         let _ = socket.connect(host);
-
-        //println!("Successfully connected to server {}", host);
-    
-        //let epoch_time: String = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
 
         let net_action: usize = NetActions::from_string(msg).into();
         let msg = format!("{}:{}:{}:{}", game_id, player, net_action, meta);
@@ -827,12 +758,10 @@ impl GameServer {
                 return None
             }
         }
-        //println!("Sent {} awaiting reply...", msg);
     
         if !block {
             return Some("".to_string())
         }
-        // let mut buf = vec![];
         match socket.set_read_timeout(Some(Duration::new(1, 0))) {
             Ok(_) => (),
             Err(_e) => {
@@ -844,7 +773,6 @@ impl GameServer {
             Ok(size) => Some(String::from_utf8_lossy(&buf[0..size]).to_string()),
             Err(_e) => {
                 None
-                //format!("Failed to connect: {}", e)
             }
         }
     }
@@ -919,9 +847,6 @@ impl GameState {
     }
 
     pub fn new(player_name: String, host: String, game_id: String ,mut textures: HashMap<String, graphics::ImageGeneric<GlBackendSpec>>) -> Self {
-
-        //let game_server = GameServer::new(host.clone());
-        //std::thread::sleep(std::time::Duration::from_millis(1000));
         let result = GameState::join_game(host.clone(), player_name.clone(), game_id.clone());
         let game_state: NetworkedGame = serde_json::from_str(&result).unwrap();
 
@@ -1066,8 +991,6 @@ impl event::EventHandler for GameState {
 
                         self.opponent.reset_last_dir();
                         self.opponent_positions.clear();
-                        //self.opponent_positions.remove(0);
-                        //self.opponent_positions.push((self.opponent.body.x, self.opponent.body.y, f32::from(self.opponent.dir.clone()), Instant::now()));
                     }
                 }
             }
