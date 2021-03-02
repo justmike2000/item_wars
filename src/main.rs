@@ -1,11 +1,12 @@
 //! Author: @justmike2000
 //! Repo: https://github.com/justmike2000/item_wars/
 
-use ggez::{event::{KeyCode, KeyMods}};
+use ggez::event::{KeyCode, KeyMods};
 use ggez::{event, graphics, Context, GameResult};
 use graphics::{GlBackendSpec, ImageGeneric, Rect};
 use glam::*;
 
+use std::sync::{Arc, Mutex};
 use std::{ops::Index, time::{Duration, Instant}};
 use std::path;
 use std::env;
@@ -170,6 +171,7 @@ impl Potion {
 struct Player {
     /// First we have the body of the player, which is a single `Segment`.
     body: Position,
+    is_hit: bool,
     /// Then we have the current direction the player is moving. This is
     /// the direction it will move when `update` is called on it.
     dir: Direction,
@@ -219,6 +221,7 @@ impl Player {
             animation_total_frames: 4.0,
             last_animation: Some(std::time::Instant::now()),
             animation_duration:  Duration::new(0, 150_000_000),
+            is_hit: false,
         }
     }
 
@@ -448,13 +451,13 @@ impl Hud {
         let top_back = graphics::Rect {
                 x: 0.0,
                 y: 0.0,
-                w: 1000.0,
+                w: SCREEN_SIZE.0,
                 h: GRID_CELL_SIZE,
         };
         let bottom_back = graphics::Rect {
                 x: 0.0,
                 y: SCREEN_SIZE.1 - GRID_CELL_SIZE,
-                w: 1000.0,
+                w: SCREEN_SIZE.0,
                 h: GRID_CELL_SIZE,
         };
         let top_rectangle =
@@ -637,12 +640,54 @@ impl GameServer {
         //let listener = TcpListener::bind(self.hostname.clone()).unwrap();
         let mut socket = UdpSocket::bind(self.hostname.clone()).unwrap();
 
+         // threaded game checking one thread per game
+        // if Instant::now() - last_server_update > Duration::from_millis(16) {
+        //    for game in self.games.iter_mut() {
+        //        if game.started {
+        //           let mut cloned_mut_vec = game.players.clone();
+        //           let mut player1 =  cloned_mut_vec.first_mut().unwrap().clone();
+        //           let mut player2 =  cloned_mut_vec.last_mut().unwrap().clone();
+        //           if player1.clone().body == player2.clone().body {
+        //               player1.is_hit = true;
+        //               player2.is_hit = true;
+        //               //println!("{:?}", player1.last_dir);
+        //               //println!("HIT");
+        //           } else {
+        //               player1.is_hit = false;
+        //               player2.is_hit = false;
+        //           }
+        //        }   
+        //    }
+        //    last_server_update = Instant::now();
+        //}
+
+        let mut last_server_update = Instant::now();
         loop {
             let mut buf = [0; 65_000];
             let (amt, src) = socket.recv_from(&mut buf).unwrap();
             let result = String::from_utf8(buf.to_vec()).unwrap();
             self.handle_connection(result, &mut socket, src, amt);
+
+
+
         }
+    }
+
+    fn new_game(&mut self) -> String {
+        let mut count = self.game_count.parse::<i32>().unwrap();
+        count += 1;
+        self.game_count = count.to_string();
+        let game = NetworkedGame::new(self.game_count.clone());
+        let session_id = game.clone().session_id;
+        self.games.push(game.clone());
+        let arc_game = Arc::new(Mutex::new(game));
+        let shared_game = arc_game.clone();
+        std::thread::spawn(move || {
+            loop {
+                let mut game = shared_game.lock().unwrap();
+            }
+        });
+        session_id
     }
 
     fn handle_connection(&mut self, request: String, socket: &mut UdpSocket, addr: SocketAddr, amt: usize) {
@@ -654,12 +699,8 @@ impl GameServer {
 
         match command {
             NetActions::Newgame => {
-                let mut count = self.game_count.parse::<i32>().unwrap();
-                count += 1;
-                self.game_count = count.to_string();
-                let game = NetworkedGame::new(self.game_count.clone());
-                self.games.push(game.clone());
-                let _ = socket.send_to(game.session_id.as_bytes(), addr);
+                let game_id = self.new_game();
+                let _ = socket.send_to(game_id.as_bytes(), addr);
             },
             NetActions::Listgames => {
                 let game_info: Vec<Vec<String>> = self.games.iter().filter(|game| !game.started ).map(|game| {
@@ -1060,7 +1101,7 @@ impl event::EventHandler for GameState {
             // Then we tell the player and the items to draw themselves
             self.opponent.draw(ctx)?;
             self.player.draw(ctx)?;
-            self.food.draw(ctx)?;
+            //self.food.draw(ctx)?;
             self.hud.draw(ctx, &self.player)?;
         }
          
